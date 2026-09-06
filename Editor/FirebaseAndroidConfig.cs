@@ -32,6 +32,15 @@ namespace LevelTracking.Editor
 
         public const string AndroidLibraryPath = "Assets/Plugins/Android/FirebaseApp.androidlib";
 
+        /// <summary>
+        /// androidlib 的 manifest package（AGP 8 拿它当 namespace）。🔴 **固定值、与 application id 无关**：
+        /// Unity 只在**第一次**导出这个模块时生成它的 `build.gradle`（namespace 抄当时的 package），
+        /// 之后增量导出不再改；package 若随 application id 变（测试包 / 正式包交替构建），第二次起
+        /// AGP 就报 `Incorrect package="…" found in source AndroidManifest.xml`（2026-09-06 实踩）。
+        /// 这个模块只装资源、没有代码，namespace 叫什么都行，所以取一个不含任何游戏包名的常量。
+        /// </summary>
+        public const string ManifestPackage = "com.gthbj.leveltracking.firebaseconfig";
+
 
         /// <summary>
         /// 按本次构建**实际生效**的 application id 重建 androidlib。🔴 包不认识任何游戏的包名：
@@ -66,7 +75,8 @@ namespace LevelTracking.Editor
 
             RunGenerator(applicationId, xmlPath);
             VerifyGenerated(xmlPath, applicationId);
-            WriteLibraryScaffolding(applicationId);
+            WriteLibraryScaffolding();
+            DropStaleGeneratedModule();
 
             AssetDatabase.Refresh();
             Debug.Log($"LEVEL_TRACKING_FIREBASE_CONFIG generated applicationId={applicationId} xml={xmlPath}");
@@ -140,15 +150,14 @@ namespace LevelTracking.Editor
             }
         }
 
-        private static void WriteLibraryScaffolding(string applicationId)
+        private static void WriteLibraryScaffolding()
         {
-            // 命名空间取一个与游戏包名不冲突的固定值：这个模块只提供资源、不含代码。
             File.WriteAllText(
                 Path.Combine(AndroidLibraryPath, "AndroidManifest.xml"),
                 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                 + "<!-- 构建期生成，请勿手改：LevelTracking.Editor.FirebaseAndroidConfig 每次构建重建本目录。 -->\n"
                 + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
-                + $"          package=\"{applicationId}.firebaseconfig\">\n"
+                + $"          package=\"{ManifestPackage}\">\n"
                 + "</manifest>\n");
 
             File.WriteAllText(
@@ -156,6 +165,35 @@ namespace LevelTracking.Editor
                 "# 构建期生成，请勿手改。Unity 靠这个文件把目录识别成 Android library 模块。\n"
                 + "android.library=true\n"
                 + "target=android-36\n");
+        }
+
+        /// <summary>
+        /// 清掉 Unity 上一次导出留下的、namespace 与 <see cref="ManifestPackage"/> 不一致的生成模块
+        /// （`Library/Bee/Android/Prj/<backend>/Gradle/unityLibrary/FirebaseApp.androidlib`），让它重新生成。
+        /// 只会在改过 package 名之后命中一次（比如从游戏自己那版生成器迁到本包），平时是空操作。
+        /// 不清的话失败形态是 gradle 的 `Incorrect package=` 而不是任何指向这里的提示。
+        /// </summary>
+        private static void DropStaleGeneratedModule()
+        {
+            var projects = Path.Combine("Library", "Bee", "Android", "Prj");
+            if (!Directory.Exists(projects))
+            {
+                return;
+            }
+
+            var libraryName = Path.GetFileName(AndroidLibraryPath);
+            foreach (var backend in Directory.GetDirectories(projects))
+            {
+                var module = Path.Combine(backend, "Gradle", "unityLibrary", libraryName);
+                var gradle = Path.Combine(module, "build.gradle");
+                if (!File.Exists(gradle) || File.ReadAllText(gradle).Contains($"namespace \"{ManifestPackage}\""))
+                {
+                    continue;
+                }
+
+                Directory.Delete(module, recursive: true);
+                Debug.Log($"LEVEL_TRACKING_FIREBASE_CONFIG dropped stale generated module {module} (namespace != {ManifestPackage})");
+            }
         }
 
         private static void RequireFile(string path, string what)
