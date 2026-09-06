@@ -32,15 +32,6 @@ namespace LevelTracking.Editor
 
         public const string AndroidLibraryPath = "Assets/Plugins/Android/FirebaseApp.androidlib";
 
-        /// <summary>
-        /// androidlib 的 manifest package（AGP 8 拿它当 namespace）。🔴 **固定值、与 application id 无关**：
-        /// Unity 只在**第一次**导出这个模块时生成它的 `build.gradle`（namespace 抄当时的 package），
-        /// 之后增量导出不再改；package 若随 application id 变（测试包 / 正式包交替构建），第二次起
-        /// AGP 就报 `Incorrect package="…" found in source AndroidManifest.xml`（2026-09-06 实踩）。
-        /// 这个模块只装资源、没有代码，namespace 叫什么都行，所以取一个不含任何游戏包名的常量。
-        /// </summary>
-        public const string ManifestPackage = "com.gthbj.leveltracking.firebaseconfig";
-
 
         /// <summary>
         /// 按本次构建**实际生效**的 application id 重建 androidlib。🔴 包不认识任何游戏的包名：
@@ -48,16 +39,28 @@ namespace LevelTracking.Editor
         /// 并自己把上一次构建留下的 <see cref="AndroidLibraryPath"/> 删掉（见 <see cref="Remove"/>）。
         /// json 里没有这个 id 时本方法抛 <c>BuildFailedException</c>，不静默。
         ///
+        /// 🔴 <paramref name="libraryPackage"/> 是 androidlib 的 manifest package（AGP 8 拿它当 namespace），
+        /// **由宿主给、且宿主要给一个永远不变的值**（arrows 用 <c>com.boopfun.arrows.firebaseconfig</c>）：
+        /// Unity 只在**第一次**导出这个模块时生成它的 <c>build.gradle</c>（namespace 抄当时的 package），
+        /// 之后增量导出既不改它、目录被删了也不再生成；package 一变，第二次构建起 AGP 就报
+        /// <c>Incorrect package="…" found in source AndroidManifest.xml</c>（2026-09-06 arrows 实踩，两种形态都试过）。
+        /// 这个模块只装资源、没有代码，namespace 叫什么都行——唯一要紧的是**别变**。包不替宿主定这个名字：
+        /// 它是宿主 `Library/` 里已经生成过的那份的一部分，换名字等于让每棵老树重新全量导出一次。
+        ///
         /// 🔴 无条件先删再建，不是图省事：这个目录住在 `Assets/` 下、跨构建留存，
         /// 上一次构建（比如测试包）留下的 `google_app_id` 会被这一次（比如管理员包）原样带走，
         /// 于是两个包的数据混进同一个 Firebase app——而包能装、能跑、数据也在流，
         /// 只是流错了地方。
         /// </summary>
-        public static void Regenerate(string applicationId)
+        public static void Regenerate(string applicationId, string libraryPackage)
         {
             if (string.IsNullOrWhiteSpace(applicationId))
             {
                 throw new BuildFailedException("Firebase 配置生成需要一个非空的 application id。");
+            }
+            if (string.IsNullOrWhiteSpace(libraryPackage) || libraryPackage.Contains(" "))
+            {
+                throw new BuildFailedException("Firebase 配置 androidlib 需要一个固定的、合法的 manifest package（见 Regenerate 的注释）。");
             }
 
             if (Directory.Exists(AndroidLibraryPath))
@@ -75,8 +78,7 @@ namespace LevelTracking.Editor
 
             RunGenerator(applicationId, xmlPath);
             VerifyGenerated(xmlPath, applicationId);
-            WriteLibraryScaffolding();
-            DropStaleGeneratedModule();
+            WriteLibraryScaffolding(libraryPackage);
 
             AssetDatabase.Refresh();
             Debug.Log($"LEVEL_TRACKING_FIREBASE_CONFIG generated applicationId={applicationId} xml={xmlPath}");
@@ -150,14 +152,14 @@ namespace LevelTracking.Editor
             }
         }
 
-        private static void WriteLibraryScaffolding()
+        private static void WriteLibraryScaffolding(string libraryPackage)
         {
             File.WriteAllText(
                 Path.Combine(AndroidLibraryPath, "AndroidManifest.xml"),
                 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                 + "<!-- 构建期生成，请勿手改：LevelTracking.Editor.FirebaseAndroidConfig 每次构建重建本目录。 -->\n"
                 + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
-                + $"          package=\"{ManifestPackage}\">\n"
+                + $"          package=\"{libraryPackage}\">\n"
                 + "</manifest>\n");
 
             File.WriteAllText(
@@ -165,35 +167,6 @@ namespace LevelTracking.Editor
                 "# 构建期生成，请勿手改。Unity 靠这个文件把目录识别成 Android library 模块。\n"
                 + "android.library=true\n"
                 + "target=android-36\n");
-        }
-
-        /// <summary>
-        /// 清掉 Unity 上一次导出留下的、namespace 与 <see cref="ManifestPackage"/> 不一致的生成模块
-        /// （`Library/Bee/Android/Prj/<backend>/Gradle/unityLibrary/FirebaseApp.androidlib`），让它重新生成。
-        /// 只会在改过 package 名之后命中一次（比如从游戏自己那版生成器迁到本包），平时是空操作。
-        /// 不清的话失败形态是 gradle 的 `Incorrect package=` 而不是任何指向这里的提示。
-        /// </summary>
-        private static void DropStaleGeneratedModule()
-        {
-            var projects = Path.Combine("Library", "Bee", "Android", "Prj");
-            if (!Directory.Exists(projects))
-            {
-                return;
-            }
-
-            var libraryName = Path.GetFileName(AndroidLibraryPath);
-            foreach (var backend in Directory.GetDirectories(projects))
-            {
-                var module = Path.Combine(backend, "Gradle", "unityLibrary", libraryName);
-                var gradle = Path.Combine(module, "build.gradle");
-                if (!File.Exists(gradle) || File.ReadAllText(gradle).Contains($"namespace \"{ManifestPackage}\""))
-                {
-                    continue;
-                }
-
-                Directory.Delete(module, recursive: true);
-                Debug.Log($"LEVEL_TRACKING_FIREBASE_CONFIG dropped stale generated module {module} (namespace != {ManifestPackage})");
-            }
         }
 
         private static void RequireFile(string path, string what)
