@@ -1,0 +1,23 @@
+{
+    "name": "LevelTracking.Tests.EditMode",
+    "rootNamespace": "LevelTracking.Tests.EditMode",
+    "references": [
+        "LevelTracking"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}
