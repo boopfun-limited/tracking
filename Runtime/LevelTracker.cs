@@ -82,6 +82,15 @@ namespace LevelTracking
                 AnalyticsParameter.Of(LevelTrackingEvents.Params.BoosterAmount, amount));
         }
 
+        /// <summary>
+        /// 玩家被判定卡死并且引导已经展示。「卡死」由游戏自己证明（water_sort 的严格死局判定）、
+        /// 卡在哪个盘、引导指向什么按钮，都是游戏的 <paramref name="extra"/>；这里只盖公共参数与用时。
+        /// </summary>
+        public void LevelStuck(int levelNumber, params AnalyticsParameter[] extra)
+        {
+            Emit(LevelTrackingEvents.LevelStuck, true, levelNumber, extra);
+        }
+
         /// <summary>平事件直通：不盖任何公共参数。事件名请传游戏的常量，游戏侧的门只认常量。</summary>
         public void Flat(string eventName, params AnalyticsParameter[] parameters)
         {

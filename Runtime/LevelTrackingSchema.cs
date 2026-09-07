@@ -55,6 +55,7 @@ namespace LevelTracking
             new MethodSpec(nameof(LevelTracker.LevelExit), LevelTrackingEvents.LevelExit, playTime: true),
             new MethodSpec(nameof(LevelTracker.LevelResume), LevelTrackingEvents.LevelResume, playTime: true),
             new MethodSpec(nameof(LevelTracker.BoosterUsed), LevelTrackingEvents.BoosterUsed, playTime: true, LevelTrackingEvents.Params.Booster, LevelTrackingEvents.Params.BoosterAmount),
+            new MethodSpec(nameof(LevelTracker.LevelStuck), LevelTrackingEvents.LevelStuck, playTime: true),
         };
     }
 }

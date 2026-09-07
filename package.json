@@ -3,6 +3,6 @@
   "displayName": "Level Tracking",
   "version": "0.1.0",
   "unity": "6000.3",
-  "description": "Level analytics for Unity puzzle games: the events a level emits (level_start / level_end / level_revive / level_exit / level_resume / booster_used), the play clock that excludes backgrounded and overlay time, the buffered Firebase Analytics backend, and the google-services.json → androidlib build step. Extracted from gthbj/arrows (PRD_20260906_1854); games pin a commit SHA. See Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md.",
+  "description": "Level analytics for Unity puzzle games: the events a level emits (level_start / level_end / level_revive / level_exit / level_resume / booster_used / level_stuck), the play clock that excludes backgrounded and overlay time, the buffered Firebase Analytics backend, and the google-services.json → androidlib build step. Extracted from gthbj/arrows (PRD_20260906_1854); games pin a commit SHA. See Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md.",
   "author": { "name": "gthbj" }
 }
