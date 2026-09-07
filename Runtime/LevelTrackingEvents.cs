@@ -136,6 +136,9 @@ namespace LevelTracking
         /// </summary>
         public const string BoosterUsed = "booster_used";
 
+        /// <summary>玩家被判定卡死且引导已展示。什么算卡死由游戏证明（water_sort：严格死局判定）；卡在哪、引导指向什么都是游戏的 extra。</summary>
+        public const string LevelStuck = "level_stuck";
+
         public static class Params
         {
             /// <summary>
