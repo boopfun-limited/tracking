@@ -15,5 +15,9 @@ namespace Tracking
         public void SetUserProperty(string name, string value)
         {
         }
+
+        public void SetUserId(string userId)
+        {
+        }
     }
 }

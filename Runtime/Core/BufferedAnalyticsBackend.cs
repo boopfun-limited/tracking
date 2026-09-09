@@ -194,20 +194,50 @@ namespace Tracking
         }
 
         /// <summary>
+        /// 设 GA4 `user_id`，语义见 <see cref="IAnalyticsBackend.SetUserId"/>。
+        /// 与 <see cref="SetUserProperty"/> 同一条队列、按原序补报，理由完全相同：
+        /// Firebase 的 `setUserId` 只影响此后的事件，提前刷等于给早于它的事件伪造身份。
+        /// null 合法（清掉），原样透传，不在这里兜成空串。
+        /// </summary>
+        public void SetUserId(string userId)
+        {
+            IAnalyticsBackend attached;
+            lock (gate)
+            {
+                attached = target;
+                if (attached == null)
+                {
+                    if (pending.Count >= capacity)
+                    {
+                        droppedEventCount++;
+                        return;
+                    }
+
+                    pending.Enqueue(PendingCall.UserId(userId));
+                    return;
+                }
+            }
+
+            attached.SetUserId(userId);
+        }
+
+        /// <summary>
         /// 一次缓存下来的调用。事件与用户属性装在同一个类型里，是为了让它们能排进
         /// **同一条队列**——顺序正是这个缓冲件唯一要守住的东西。
         /// </summary>
         private readonly struct PendingCall
         {
-            private readonly bool isUserProperty;
+            private enum Kind { Event, UserProperty, UserId }
+
+            private readonly Kind kind;
             private readonly string name;
             private readonly AnalyticsParameter[] parameters;
             private readonly string propertyValue;
 
             private PendingCall(
-                bool isUserProperty, string name, AnalyticsParameter[] parameters, string propertyValue)
+                Kind kind, string name, AnalyticsParameter[] parameters, string propertyValue)
             {
-                this.isUserProperty = isUserProperty;
+                this.kind = kind;
                 this.name = name;
                 this.parameters = parameters;
                 this.propertyValue = propertyValue;
@@ -215,24 +245,34 @@ namespace Tracking
 
             public static PendingCall Event(string eventName, AnalyticsParameter[] parameters)
             {
-                return new PendingCall(false, eventName, parameters, propertyValue: null);
+                return new PendingCall(Kind.Event, eventName, parameters, propertyValue: null);
             }
 
             /// <summary>value 传 null 是合法的（Firebase 那侧等于清掉该属性），不要在这里兜成空串。</summary>
             public static PendingCall UserProperty(string name, string value)
             {
-                return new PendingCall(true, name, parameters: null, propertyValue: value);
+                return new PendingCall(Kind.UserProperty, name, parameters: null, propertyValue: value);
+            }
+
+            /// <summary>userId 传 null 是合法的（清掉），同样不兜成空串。</summary>
+            public static PendingCall UserId(string userId)
+            {
+                return new PendingCall(Kind.UserId, name: null, parameters: null, propertyValue: userId);
             }
 
             public void ReplayInto(IAnalyticsBackend backend)
             {
-                if (isUserProperty)
+                switch (kind)
                 {
-                    backend.SetUserProperty(name, propertyValue);
-                }
-                else
-                {
-                    backend.LogEvent(name, parameters);
+                    case Kind.UserProperty:
+                        backend.SetUserProperty(name, propertyValue);
+                        break;
+                    case Kind.UserId:
+                        backend.SetUserId(propertyValue);
+                        break;
+                    default:
+                        backend.LogEvent(name, parameters);
+                        break;
                 }
             }
         }
