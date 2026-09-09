@@ -1,4 +1,4 @@
-namespace LevelTracking
+namespace Tracking
 {
     /// <summary>
     /// 一个埋点参数。**刻意只有三种值类型**——字符串 / 整数 / 浮点，因为下游 GA4 就只认这三种，

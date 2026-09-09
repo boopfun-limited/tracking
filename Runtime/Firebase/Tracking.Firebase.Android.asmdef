@@ -1,8 +1,8 @@
 {
-    "name": "LevelTracking.Android",
-    "rootNamespace": "LevelTracking.Android",
+    "name": "Tracking.Firebase.Android",
+    "rootNamespace": "Tracking.Firebase.Android",
     "references": [
-        "LevelTracking"
+        "Tracking"
     ],
     "includePlatforms": [
         "Android"

@@ -1,6 +1,6 @@
 {
-    "name": "LevelTracking.Editor",
-    "rootNamespace": "LevelTracking.Editor",
+    "name": "Tracking.Editor",
+    "rootNamespace": "Tracking.Editor",
     "references": [],
     "includePlatforms": [
         "Editor"

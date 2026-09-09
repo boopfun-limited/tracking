@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEditor.Build;
 using Debug = UnityEngine.Debug;
 
-namespace LevelTracking.Editor
+namespace Tracking.Editor
 {
     /// <summary>
     /// 把 `google-services.json` 转成 Android 资源，供 Firebase 运行时读取。

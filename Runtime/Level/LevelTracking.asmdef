@@ -1,7 +1,9 @@
 {
     "name": "LevelTracking",
     "rootNamespace": "LevelTracking",
-    "references": [],
+    "references": [
+        "Tracking"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

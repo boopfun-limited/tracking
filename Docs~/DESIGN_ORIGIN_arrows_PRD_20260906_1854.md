@@ -1,5 +1,7 @@
 # 来路：arrows PRD_20260906_1854
 
+> 🔴 **2026-09-09 改名注记（本文其余部分是当时的原文，刻意不改写）**：包已由 `com.gthbj.level-tracking` 改名为 `com.gthbj.tracking`，内容切成四个程序集——`Tracking`（`Runtime/Core`，传输层）、`Tracking.Firebase.Android`（`Runtime/Firebase`，即下文的 `LevelTracking.Android`）、`Tracking.Editor`（`Editor`）、`LevelTracking`（`Runtime/Level`，关卡域）。**事件名 / 参数名 / 类型名一个没动**，下文的名字判据全部照旧成立。
+
 本包由 `gthbj/arrows` 抽出，设计文档是 arrows 仓 `docs/prd/PRD_20260906_1854_关卡埋点公共库level-tracking与water_sort接入.md`
 （rev.8，Codex 六轮评审后定稿；owner 2026-09-06 拍板仓库公开）。本文件只记「为什么长这样」的几条，不复述 PRD。
 
