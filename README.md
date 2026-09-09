@@ -13,11 +13,12 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 |---|---|---|---|
 | `Tracking` | `Runtime/Core` | 全部 | `IAnalyticsBackend`（缝）/ `AnalyticsParameter`（三种值类型）、`BufferedAnalyticsBackend`（后端就绪前把**事件与用户属性排进同一条队列**按原序补报）、`NullAnalyticsBackend` |
 | `Tracking.Firebase.Android` | `Runtime/Firebase` | Android | `FirebaseAnalyticsBackend.AttachWhenReady`——**全项目唯一碰 `Firebase.*` 的地方**（precompiled 引用 `Firebase.App.dll` / `Firebase.Analytics.dll` / `Firebase.TaskExtension.dll`；SDK 本体由游戏自己导入） |
+| `Tracking.Identity.Android` | `Runtime/Identity` | Android | `AppSetIdUserProperty.SetWhenReady`——异步取 **App Set ID**（Google 对标 IDFV 的开发者范围标识符）并写成 GA4 用户属性 `app_set_id` + `app_set_id_scope` |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
 | `LevelTracking.Tests.EditMode` | `Tests/Editor` | Editor | `LevelTrackerEmitsExactlyItsSchema`（表 == 行为）、`PlayClockTests`（三条不变量）、名字合规 |
 
-🔴 **依赖是单向的**：`LevelTracking` → `Tracking`，`Tracking.Firebase.Android` → `Tracking`。
+🔴 **依赖是单向的**：`LevelTracking` → `Tracking`，`Tracking.Firebase.Android` → `Tracking`，`Tracking.Identity.Android` → `Tracking`。
 关卡模块与将来的其它域模块（广告、IAP…）**互不引用**，各自只认核心。
 只要关卡的游戏就只在 asmdef 里引 `LevelTracking`，编译期就把别的挡在外面。
 
@@ -27,6 +28,14 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    要跑包内测试再加 `"testables": ["com.gthbj.tracking"]`。
 2. 导入 Firebase Unity SDK 的 `FirebaseAnalytics.unitypackage`（可删桌面 / iOS 原生库），`Assets/google-services.json` 入库。
 3. 装配根：Android 上 `var buffer = new BufferedAnalyticsBackend(); FirebaseAnalyticsBackend.AttachWhenReady(buffer);`，
+   要跨 App 归因再加一行 `AppSetIdUserProperty.SetWhenReady(buffer);`（**传 buffer 不传已 Attach 的后端**——
+   属性与事件共用同一条有序队列，补报时才落在「当时那一刻」）。
+   🔴 用 `AppSetIdUserProperty` 的游戏**必须自己声明** `com.google.android.gms:play-services-appset`
+   （放进自己仓里某个 `Editor/` 下的 `*Dependencies.xml`）：**EDM4U 不扫 UPM 包目录**，
+   放在本包里的依赖声明它看不见（2026-09-09 实测：解析器跑了、文件在 `Library/PackageCache/…/Editor/` 里、
+   回执与 `mainTemplate.gradle` 里都没有它）。这些类今天已被 Firebase / AppsFlyer 传递带进 APK，
+   所以不声明**也能跑**——正因如此才要显式声明：哪天上游把这条传递依赖丢了，症状是 JNI 抛
+   `ClassNotFoundException`、被 catch 成一条 `LogWarning`、属性无声消失，没有任何门会红。
    其余平台 `NullAnalyticsBackend.Instance`。构建脚本在定下 application id **之后**调
    `FirebaseAndroidConfig.Regenerate(id)`；不想给某一档（QA / 管理员包）配 Firebase 就在**宿主**分支里跳过它，包不认识任何游戏的包名。
 4. 关卡侧：`new LevelTracker(backend, new PlayClock(() => Time.unscaledTime), gameCommons)`；
