@@ -2,6 +2,7 @@
     "name": "LevelTracking.Tests.EditMode",
     "rootNamespace": "LevelTracking.Tests.EditMode",
     "references": [
+        "Tracking",
         "LevelTracking"
     ],
     "includePlatforms": [
@@ -16,8 +17,8 @@
     "autoReferenced": false,
     "defineConstraints": [],
     "versionDefines": [],
+    "noEngineReferences": false,
     "optionalUnityReferences": [
         "TestAssemblies"
-    ],
-    "noEngineReferences": false
+    ]
 }

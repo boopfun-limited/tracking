@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace LevelTracking
+namespace Tracking
 {
     /// <summary>
     /// 在真实后端就绪之前缓存事件的装配件。

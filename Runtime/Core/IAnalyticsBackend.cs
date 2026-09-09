@@ -1,4 +1,4 @@
-namespace LevelTracking
+namespace Tracking
 {
     /// <summary>
     /// 埋点上报抽象。存在的理由：把 Firebase 那套

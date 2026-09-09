@@ -1,4 +1,4 @@
-namespace LevelTracking
+namespace Tracking
 {
     /// <summary>
     /// 什么都不做的埋点后端。编辑器与任何没有真实上报通道的宿主用它，

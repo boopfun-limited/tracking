@@ -1,10 +1,11 @@
 using System;
+using Tracking;
 using Firebase;
 using Firebase.Analytics;
 using Firebase.Extensions;
 using UnityEngine;
 
-namespace LevelTracking.Android
+namespace Tracking.Firebase.Android
 {
     /// <summary>
     /// 把 Firebase 关在这一个文件里的那道墙。**这里只有接线，没有判定**——
