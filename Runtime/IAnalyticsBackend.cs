@@ -18,5 +18,19 @@ namespace LevelTracking
         /// 不报错也不进 DebugView——所以事件名请写成常量，不要在调用点拼字符串。
         /// </summary>
         void LogEvent(string eventName, params AnalyticsParameter[] parameters);
+
+        /// <summary>
+        /// 设一次用户属性；此后报的每一条事件都会带上它，直到被改写或清掉（<paramref name="value"/>
+        /// 传 null 即清掉）。在 BigQuery 导出里落在 `user_properties` 数组，**不需要**去 GA4 界面
+        /// 注册自定义维度——注册只影响界面报表，导出是原样过来的。
+        ///
+        /// 🔴 GA4 对属性的上限比事件参数紧得多：**属性名 ≤24 字符、值 ≤36 字符**，
+        /// 每个媒体资源至多 25 个自定义属性。超限 Firebase **静默丢弃**，不报错也不进 DebugView——
+        /// 症状是「join 的时候发现这一列大面积为空」，而那时数据已经攒了几个月、补不回来。
+        /// 所以属性名写成常量，值的长度在接线处就要有数。
+        ///
+        /// **实现方不得抛异常**，理由同 <see cref="LogEvent"/>。
+        /// </summary>
+        void SetUserProperty(string name, string value);
     }
 }

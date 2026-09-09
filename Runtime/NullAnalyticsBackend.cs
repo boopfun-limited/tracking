@@ -11,5 +11,9 @@ namespace LevelTracking
         public void LogEvent(string eventName, params AnalyticsParameter[] parameters)
         {
         }
+
+        public void SetUserProperty(string name, string value)
+        {
+        }
     }
 }
