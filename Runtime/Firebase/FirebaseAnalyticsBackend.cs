@@ -47,7 +47,11 @@ namespace Tracking.Firebase.Android
                         return;
                     }
 
-                    buffer.Attach(new FirebaseSink());
+                    var sink = new FirebaseSink();
+                    // 🔴 先设身份再接上：接上那一刻缓冲件会按序回放此前攒下的事件，它们都得带 user_id。
+                    // 安装标识由包自己生成（InstallId），游戏侧不用、也不要再设 user_id。
+                    sink.SetUserId(InstallId.GetOrCreate());
+                    buffer.Attach(sink);
                 });
             }
             catch (Exception error)
@@ -97,6 +101,7 @@ namespace Tracking.Firebase.Android
                 }
             }
 
+            /// <summary>只给 AttachWhenReady 用；不在 IAnalyticsBackend 上——user_id 是包的决定，不是游戏的。</summary>
             public void SetUserId(string userId)
             {
                 try

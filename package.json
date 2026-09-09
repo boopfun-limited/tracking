@@ -1,7 +1,7 @@
 {
   "name": "com.gthbj.tracking",
   "displayName": "Tracking",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "unity": "6000.3",
   "description": "Analytics tracking for Unity casual games. Core: the IAnalyticsBackend seam, typed parameters, and a buffer that replays events and user properties in one order while the backend comes up. Firebase: the only place that touches Firebase.*, plus the google-services.json -> androidlib build step. Level: the events a level emits (level_start / level_end / level_revive / level_exit / level_resume / booster_used / level_stuck) and the play clock that excludes backgrounded and overlay time. Modules are separate assemblies: a game references only the ones it wants. Extracted from gthbj/arrows (PRD_20260906_1854); games pin a commit SHA. See Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md.",
   "author": {

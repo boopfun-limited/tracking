@@ -60,9 +60,12 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    （`LevelStartWithPrevFails` / `LevelEndWithFailCount`），不是重载——游戏侧文档门按方法名判。
 6. 用户属性走 `backend.SetUserProperty(name, value)`（例：AppsFlyer ID → `appsflyer_id`，用来和 MMP 数据 join）。
    **GA4 上限比事件参数紧得多**：名 ≤24 字符、值 ≤36 字符、每媒体资源 25 个，超限静默丢弃。
-7. GA4 `user_id` 走 `backend.SetUserId(id)`：放**游戏自己生成、跟着存档走**的安装标识（不是任何 SDK 的 ID，
-   也不是能识别到个人的东西）。BigQuery 里落在顶层列 `user_id`；备份还原把存档带回来时它也回来，
-   而 `user_pseudo_id` 不会——事件历史因此跟着「这份存档」。首会话里早于它的 `first_open` 不带，回填同上。
+7. GA4 `user_id` **包自动设，游戏不用写一行**：`AttachWhenReady` 在接上 Firebase 之前把 `InstallId.GetOrCreate()`
+   （本地生成的 GUID，存 PlayerPrefs 键 `gthbj.tracking.install_id`）设成 `user_id`，所以回放的每一条事件都带它。
+   BigQuery 里落在顶层列 `user_id`（与 `user_pseudo_id` 并列），`users_*` 日表按它一人一行；备份还原把 PlayerPrefs
+   带回来时它也回来，而 `user_pseudo_id` / AFID / App Set ID 都不会（2026-09-09 真机实测）——事件历史因此跟着「这份存档」。
+   首会话里早于它的 `first_open` / `session_start` 不带，要在 BigQuery 里按 `user_pseudo_id` 回填。
+   它不是任何 SDK 的 ID，也识别不到个人；🔴 **游戏侧不要再自己设 user_id**（接口上没有这个方法，就是为了没法设）。
 
 ## 接口加成员时
 
