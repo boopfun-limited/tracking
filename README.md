@@ -36,6 +36,21 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    回执与 `mainTemplate.gradle` 里都没有它）。这些类今天已被 Firebase / AppsFlyer 传递带进 APK，
    所以不声明**也能跑**——正因如此才要显式声明：哪天上游把这条传递依赖丢了，症状是 JNI 抛
    `ClassNotFoundException`、被 catch 成一条 `LogWarning`、属性无声消失，没有任何门会红。
+   🔴 **还必须加 R8 keep 规则**（`useCustomProguardFile: 1` + `Assets/Plugins/Android/proguard-user.txt`）：
+   本模块按**字符串类名**过 JNI，而正式包开 `AndroidMinifyRelease` 时 R8 会给**没有 consumer
+   proguard 规则的库**改名——`play-services-appset` 正是这种。2026-09-09 在 arrows 正式包 dex 上实测：
+   `Lcom/google/android/gms/appset/AppSet;` 命中 **0 次**，而同一份 dex 里 `Lcom/appsflyer/AppsFlyerLib;`、
+   `Lcom/google/firebase/analytics/FirebaseAnalytics;` 都在。缺规则的症状与上一条一模一样、同样没有门会红。
+
+   ```
+   -keep class com.google.android.gms.appset.AppSet { *; }
+   -keep interface com.google.android.gms.appset.AppSetIdClient { *; }
+   -keep class com.google.android.gms.appset.AppSetIdInfo { *; }
+   -keep interface com.google.android.gms.tasks.OnSuccessListener { *; }
+   ```
+
+   这两样都放不进本包：EDM4U 不扫 UPM 包目录，而 Unity 的自定义 proguard 文件是**固定路径**。
+   **建完正式包务必去 dex 里验一次那四个描述符还在**——构建绿证明不了这一面。
    其余平台 `NullAnalyticsBackend.Instance`。构建脚本在定下 application id **之后**调
    `FirebaseAndroidConfig.Regenerate(id)`；不想给某一档（QA / 管理员包）配 Firebase 就在**宿主**分支里跳过它，包不认识任何游戏的包名。
 4. 关卡侧：`new LevelTracker(backend, new PlayClock(() => Time.unscaledTime), gameCommons)`；
