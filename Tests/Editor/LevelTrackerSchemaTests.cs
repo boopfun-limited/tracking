@@ -28,6 +28,10 @@ namespace LevelTracking.Tests.EditMode
             {
                 // 这一组用例只核 LevelTracker 发了哪些事件，用户属性不参与判定。
             }
+
+            public void SetUserId(string userId)
+            {
+            }
         }
 
         private static IEnumerable<MethodInfo> EmittingMethods()
