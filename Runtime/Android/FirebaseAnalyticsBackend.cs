@@ -82,6 +82,20 @@ namespace LevelTracking.Android
                 }
             }
 
+            public void SetUserProperty(string name, string value)
+            {
+                try
+                {
+                    // value 传 null 即清掉该属性，这是 Firebase 自己的语义，原样透传。
+                    FirebaseAnalytics.SetUserProperty(name, value);
+                }
+                catch (Exception error)
+                {
+                    // 接口契约：不得抛。属性设不上顶多少一列维度，不该崩掉一局游戏。
+                    Debug.LogWarning($"[Analytics] 设置用户属性 {name} 失败：{error}");
+                }
+            }
+
             private static Parameter Convert(AnalyticsParameter parameter)
             {
                 switch (parameter.Kind)

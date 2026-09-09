@@ -22,6 +22,11 @@ namespace LevelTracking.Tests.EditMode
             {
                 Events.Add((eventName, parameters));
             }
+
+            public void SetUserProperty(string name, string value)
+            {
+                // 这一组用例只核 LevelTracker 发了哪些事件，用户属性不参与判定。
+            }
         }
 
         private static IEnumerable<MethodInfo> EmittingMethods()

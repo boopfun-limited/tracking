@@ -25,7 +25,7 @@ namespace LevelTracking
         public const int DefaultCapacity = 32;
 
         private readonly object gate = new object();
-        private readonly Queue<PendingEvent> pending = new Queue<PendingEvent>();
+        private readonly Queue<PendingCall> pending = new Queue<PendingCall>();
         private readonly int capacity;
 
         private IAnalyticsBackend target;
@@ -42,7 +42,7 @@ namespace LevelTracking
             this.capacity = capacity;
         }
 
-        /// <summary>已缓存、尚未转发的事件数。</summary>
+        /// <summary>已缓存、尚未转发的调用数（事件与用户属性合计）。</summary>
         public int PendingEventCount
         {
             get
@@ -55,7 +55,7 @@ namespace LevelTracking
         }
 
         /// <summary>
-        /// 因缓冲满或事件名非法而丢弃的事件数。**刻意留成可读的计数而不是纯静默**：
+        /// 因缓冲满或名字非法而丢弃的调用数（事件与用户属性合计）。**刻意留成可读的计数而不是纯静默**：
         /// 上报链路出问题时，这个数字是唯一能自证「丢了多少」的东西。
         /// </summary>
         public int DroppedEventCount
@@ -110,8 +110,7 @@ namespace LevelTracking
 
                 while (pending.Count > 0)
                 {
-                    var buffered = pending.Dequeue();
-                    backend.LogEvent(buffered.EventName, buffered.Parameters);
+                    pending.Dequeue().ReplayInto(backend);
                 }
 
                 target = backend;
@@ -143,7 +142,7 @@ namespace LevelTracking
                         return;
                     }
 
-                    pending.Enqueue(new PendingEvent(eventName, parameters ?? Array.Empty<AnalyticsParameter>()));
+                    pending.Enqueue(PendingCall.Event(eventName, parameters ?? Array.Empty<AnalyticsParameter>()));
                     return;
                 }
             }
@@ -152,17 +151,90 @@ namespace LevelTracking
             attached.LogEvent(eventName, parameters);
         }
 
-        private readonly struct PendingEvent
+        /// <summary>
+        /// 设一次用户属性，语义见 <see cref="IAnalyticsBackend.SetUserProperty"/>。
+        ///
+        /// 🔴 **和事件共用同一条队列、按原序补报**，不是单独存一份「最后的值」先刷：
+        /// Firebase 的 `SetUserProperty` 只影响**此后**报的事件，把属性提到缓存事件前面刷，
+        /// 会让本来没带这个属性的事件凭空带上它——那是伪造数据，不是补齐数据。
+        /// 想让早于属性的事件也归到同一个人名下，该在 BigQuery 里按 `user_pseudo_id` 回填，
+        /// 而不是在客户端把时序抹平。
+        /// </summary>
+        public void SetUserProperty(string name, string value)
         {
-            public PendingEvent(string eventName, AnalyticsParameter[] parameters)
+            if (string.IsNullOrWhiteSpace(name))
             {
-                EventName = eventName;
-                Parameters = parameters;
+                // 空属性名到了 Firebase 一样是静默丢弃，在这里丢至少还进得了计数。
+                lock (gate)
+                {
+                    droppedEventCount++;
+                }
+
+                return;
             }
 
-            public string EventName { get; }
+            IAnalyticsBackend attached;
+            lock (gate)
+            {
+                attached = target;
+                if (attached == null)
+                {
+                    if (pending.Count >= capacity)
+                    {
+                        droppedEventCount++;
+                        return;
+                    }
 
-            public AnalyticsParameter[] Parameters { get; }
+                    pending.Enqueue(PendingCall.UserProperty(name, value));
+                    return;
+                }
+            }
+
+            attached.SetUserProperty(name, value);
+        }
+
+        /// <summary>
+        /// 一次缓存下来的调用。事件与用户属性装在同一个类型里，是为了让它们能排进
+        /// **同一条队列**——顺序正是这个缓冲件唯一要守住的东西。
+        /// </summary>
+        private readonly struct PendingCall
+        {
+            private readonly bool isUserProperty;
+            private readonly string name;
+            private readonly AnalyticsParameter[] parameters;
+            private readonly string propertyValue;
+
+            private PendingCall(
+                bool isUserProperty, string name, AnalyticsParameter[] parameters, string propertyValue)
+            {
+                this.isUserProperty = isUserProperty;
+                this.name = name;
+                this.parameters = parameters;
+                this.propertyValue = propertyValue;
+            }
+
+            public static PendingCall Event(string eventName, AnalyticsParameter[] parameters)
+            {
+                return new PendingCall(false, eventName, parameters, propertyValue: null);
+            }
+
+            /// <summary>value 传 null 是合法的（Firebase 那侧等于清掉该属性），不要在这里兜成空串。</summary>
+            public static PendingCall UserProperty(string name, string value)
+            {
+                return new PendingCall(true, name, parameters: null, propertyValue: value);
+            }
+
+            public void ReplayInto(IAnalyticsBackend backend)
+            {
+                if (isUserProperty)
+                {
+                    backend.SetUserProperty(name, propertyValue);
+                }
+                else
+                {
+                    backend.LogEvent(name, parameters);
+                }
+            }
         }
     }
 }
