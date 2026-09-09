@@ -64,6 +64,12 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    也不是能识别到个人的东西）。BigQuery 里落在顶层列 `user_id`；备份还原把存档带回来时它也回来，
    而 `user_pseudo_id` 不会——事件历史因此跟着「这份存档」。首会话里早于它的 `first_open` 不带，回填同上。
 
+## 接口加成员时
+
+`IAnalyticsBackend` 每加一个成员，**同一提交**里要一起改：`NullAnalyticsBackend`、`BufferedAnalyticsBackend`（含 `PendingCall`
+回放）、Firebase 适配器，以及 **`Tests/Editor` 里每一个实现它的假件**。消费仓会把本包的 Editor 测试一起编译，
+假件漏一个，两个游戏仓的 EditMode 就在 `Library/PackageCache/…` 里报 CS0535——而本仓自己没有能编译的地方，看不见。
+
 ## 名字归谁
 
 库发出的事件名与参数名（`LevelTrackingEvents`）由库拥有，**改名 = 破坏性升版本**：GA4 的事件名一旦发出就进了
