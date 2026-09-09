@@ -60,6 +60,9 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    （`LevelStartWithPrevFails` / `LevelEndWithFailCount`），不是重载——游戏侧文档门按方法名判。
 6. 用户属性走 `backend.SetUserProperty(name, value)`（例：AppsFlyer ID → `appsflyer_id`，用来和 MMP 数据 join）。
    **GA4 上限比事件参数紧得多**：名 ≤24 字符、值 ≤36 字符、每媒体资源 25 个，超限静默丢弃。
+7. GA4 `user_id` 走 `backend.SetUserId(id)`：放**游戏自己生成、跟着存档走**的安装标识（不是任何 SDK 的 ID，
+   也不是能识别到个人的东西）。BigQuery 里落在顶层列 `user_id`；备份还原把存档带回来时它也回来，
+   而 `user_pseudo_id` 不会——事件历史因此跟着「这份存档」。首会话里早于它的 `first_open` 不带，回填同上。
 
 ## 名字归谁
 

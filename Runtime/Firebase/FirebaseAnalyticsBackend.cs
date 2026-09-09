@@ -97,6 +97,20 @@ namespace Tracking.Firebase.Android
                 }
             }
 
+            public void SetUserId(string userId)
+            {
+                try
+                {
+                    // null 即清掉，Firebase 自己的语义，原样透传。
+                    FirebaseAnalytics.SetUserId(userId);
+                }
+                catch (Exception error)
+                {
+                    // 接口契约：不得抛。user_id 设不上顶多这次会话的事件缺一列，不该崩掉一局游戏。
+                    Debug.LogWarning($"[Analytics] 设置 user_id 失败：{error}");
+                }
+            }
+
             private static Parameter Convert(AnalyticsParameter parameter)
             {
                 switch (parameter.Kind)

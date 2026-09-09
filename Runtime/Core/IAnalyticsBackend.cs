@@ -32,5 +32,19 @@ namespace Tracking
         /// **实现方不得抛异常**，理由同 <see cref="LogEvent"/>。
         /// </summary>
         void SetUserProperty(string name, string value);
+
+        /// <summary>
+        /// 设 GA4 的 `user_id`；此后报的每一条事件都带它，直到被改写或清掉（<paramref name="userId"/>
+        /// 传 null 即清掉）。在 BigQuery 导出里落在顶层列 `user_id`（与 `user_pseudo_id` 并列），
+        /// `users_*` 日表按它一人一行。**它放的是游戏自己生成、跟着存档走的安装标识**——
+        /// 备份还原把存档带回来时它也回来，而 `user_pseudo_id` 不会，所以事件历史跟着「这份存档」。
+        ///
+        /// 🔴 Google 的 Analytics 政策禁止把能识别到个人的值放进来（邮箱、Google 账号 ID 都不行）；
+        /// 值 ≤256 字符。和 <see cref="SetUserProperty"/> 一样只影响**此后**的事件——首会话里早于它的
+        /// `first_open` / `session_start` 不带，要在 BigQuery 里按 `user_pseudo_id` 回填。
+        ///
+        /// **实现方不得抛异常**，理由同 <see cref="LogEvent"/>。
+        /// </summary>
+        void SetUserId(string userId);
     }
 }
