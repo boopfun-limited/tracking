@@ -3,7 +3,8 @@
     "rootNamespace": "LevelTracking.Tests.EditMode",
     "references": [
         "Tracking",
-        "LevelTracking"
+        "LevelTracking",
+        "Tracking.Consent"
     ],
     "includePlatforms": [
         "Editor"
