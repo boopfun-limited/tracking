@@ -138,6 +138,40 @@ unzip -o <apk> 'classes*.dex' -d /tmp/dex && \
 
 命中 0 次就是 keep 规则没生效 / 模块没进构建。构建绿、安装成功、EditMode 全绿都证明不了这一面。
 
+### 🔴 验欧洲那条路：必须用 `SetDebugGeography`，挂 VPN 不算
+
+同意表单那三个桥方法（`loadConsentForm` / `showConsentForm` / `showPrivacyOptionsForm`）只在
+**服务端判定为受管辖区**时才会被走到。**挂欧洲节点不足以触发**——2026-09-11 在 water_sort 实测：
+
+- 手机在法国 OVH 节点上，**应用自己 uid 的 socket** 出口也确认是 `5.135.5.129`
+  （`adb shell 'su -c "su <uid> -c \"curl -s -H Host:ifconfig.me http://34.160.111.145/ip\""'`；
+  别用域名，uid 切换后 DNS 解析不到，那是 `su` 的副作用不是应用的行为）；
+- UMP 仍然返回 `consent_status=1`（NOT_REQUIRED）、`stored_info` 为**空集合**、
+  `is_pub_misconfigured=false`（读
+  `/data/data/<pkg>/shared_prefs/__GOOGLE_FUNDING_CHOICE_SDK_INTERNAL__.xml`）。
+
+数据中心 IP 拿不到受管辖区判定。正路是 UMP 自己的测试通道：
+
+```csharp
+#if ADMIN   // 或本仓等价的构建期 define——不要靠人记得删
+Tracking.Consent.Android.UmpConsentPlatform.SetDebugGeography(
+    "<logcat 里那一串>", Tracking.Consent.Android.DebugGeography.Eea);
+#endif
+var consent = new ConsentFlow(new UmpConsentPlatform(AdMobApplicationId), …);
+```
+
+那一串**不用自己算 MD5**，UMP 第一次跑完就打在 logcat 里：
+
+```bash
+adb logcat -d | grep 'addTestDeviceHashedId'
+```
+
+它是**那台机器**的标识，属于设备数据，**不要写进仓库**——调用点从环境变量 / 构建参数拿，
+或者就地临时改、验完撤掉。哈希对不上时整个调试设置**静默无效**
+（`ConsentDebugSettings.Builder.build()` 的字节码：只有「列表含本机哈希」或 `setForceTesting(true)`
+能把 `isTestDevice` 置真），症状与「Google 就是判非欧洲」一模一样，所以设完要先确认
+`isConsentFormRequired` 真的翻了。
+
 ## 接口加成员时
 
 `IAnalyticsBackend` 每加一个成员，**同一提交**里要一起改：`NullAnalyticsBackend`、`BufferedAnalyticsBackend`（含 `PendingCall`

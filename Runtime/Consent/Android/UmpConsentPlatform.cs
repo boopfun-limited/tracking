@@ -6,6 +6,26 @@ using UnityEngine;
 namespace Tracking.Consent.Android
 {
     /// <summary>
+    /// UMP 的 <c>ConsentDebugSettings.DebugGeography</c> 常量，值逐位对齐 4.0.0
+    /// （从 aar 的 <c>ConsentDebugSettings$DebugGeography.class</c> 实读，不是抄文档）。
+    /// 只给 <see cref="UmpConsentPlatform.SetDebugGeography"/> 用。
+    /// </summary>
+    public enum DebugGeography
+    {
+        /// <summary>关掉，照 Google 按出口 IP 的真实判定。</summary>
+        Disabled = 0,
+
+        /// <summary>强制当作欧洲经济区——验同意表单要的就是这个。</summary>
+        Eea = 1,
+
+        NotEea = 2,
+
+        RegulatedUsState = 3,
+
+        Other = 4,
+    }
+
+    /// <summary>
     /// <see cref="IConsentPlatform"/> 的 Android 实现：一层薄 JNI，接到包内的 Java 桥
     /// <c>com.gthbj.tracking.consent.ConsentBridge</c>（源码在同目录
     /// <c>TrackingConsent.androidlib/</c>）。
@@ -98,6 +118,40 @@ namespace Tracking.Consent.Android
                 bridge = null;
                 Debug.LogError(
                     "[Tracking] 接不上同意桥，本次会话不会请求 UMP（广告按「不可请求」处理）：" + error);
+            }
+        }
+
+        /// <summary>
+        /// 把 UMP 的地理判定强制成某一档，**只为在非欧洲的机器上验同意表单**。
+        /// 必须在构造 <see cref="UmpConsentPlatform"/> 之前调（请求一发出去就晚了）。
+        ///
+        /// 🔴 **挂欧洲 VPN 不够**：2026-09-11 在 water_sort 实测，手机上连应用 uid 自己的
+        /// socket 出口都是法国 OVH 的 <c>5.135.5.129</c>，UMP 照样返回 <c>NOT_REQUIRED</c>，
+        /// 表单那三个桥方法一次都跑不到。逐条证据见 Java 侧
+        /// <c>ConsentBridge.setDebugGeography</c> 的注释。
+        ///
+        /// 🔴 **调用点必须被构建期 define 圈住**（water_sort 用 <c>ADMIN</c>），
+        /// 不要靠人记得删。桥那侧每次被调都打一条警告日志，就是给「忘了摘」留的痕。
+        ///
+        /// <param name="testDeviceHashedId">
+        /// logcat 里 UMP 自己打的那一串（<c>I/UserMessagingPlatform: Use new
+        /// ConsentDebugSettings.Builder().addTestDeviceHashedId("…")</c>）。
+        /// 它是**这台机器**的标识，不要写进仓库。<c>null</c> / 空 = 关掉。
+        /// </param>
+        /// </summary>
+        public static void SetDebugGeography(string testDeviceHashedId, DebugGeography geography)
+        {
+            try
+            {
+                using (var bridgeClass = new AndroidJavaClass(BridgeClassName))
+                {
+                    bridgeClass.CallStatic("setDebugGeography", testDeviceHashedId, (int)geography);
+                }
+            }
+            catch (Exception error)
+            {
+                // 静默失败会让整场验证看着像「设了没用」，而那与「Google 就是判非欧洲」无法区分。
+                Debug.LogError("[Tracking] 设调试地理失败，本次跑的是真实地理判定：" + error);
             }
         }
 
