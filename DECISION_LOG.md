@@ -11,6 +11,29 @@
 
 ---
 
+## D-20260911-03 欧洲那条路只认 `SetDebugGeography` 验证，旋钮放包里、设备哈希不入库
+
+日期：2026-09-11　状态：active　模型：Claude Opus 5
+
+**决策**：同意表单那条路（`loadConsentForm` / `showConsentForm` / `showPrivacyOptionsForm`）的验证，
+**一律走 UMP 自己的 `ConsentDebugSettings`**，旋钮做成桥上的 `setDebugGeography` / C# 的
+`UmpConsentPlatform.SetDebugGeography`，**放在包里、每个游戏共用**。两条附带口径：
+① 调用点必须被**构建期 define** 圈住（water_sort 是 `ADMIN`），不靠人记得删；
+② 测试设备哈希是**那台机器的标识**，不进任何仓库，从构建参数取或就地临时改。
+
+**理由**：挂欧洲 VPN **不足以**触发受管辖区判定——2026-09-11 在 water_sort 实测，
+手机连**应用自己 uid 的 socket** 出口都是法国 OVH 的 `5.135.5.129`，UMP 照样回
+`consent_status=1`、`stored_info` 空、`is_pub_misconfigured=false`（数据中心 IP 拿不到判定）。
+没有这个旋钮，那三个方法在国内**一次都跑不到**，而「没验过」与「验过是对的」在所有门禁上都是绿的。
+放包里而不是每个游戏各写一份，是因为它要碰 `ConsentRequestParameters.Builder`——
+那正是桥存在的理由（D-20260911-02），从 C# 直接碰会被 R8 改名。
+
+**代价**：桥多一个公开静态方法与两个静态字段，正式包里也带着。用没带 define 的调用点误开的后果是
+**欧洲判定被强制**，所以桥每次被调都打一条 `Log.w` 留痕。旋钮本身无法被 EditMode 覆盖
+（`Tracking.Consent.Android` 只有 APK 能编译），它的正确性只能靠真机跑一次表单来证。
+
+---
+
 ## D-20260911-02 碰第三方 Android SDK 一律经包内 Java 桥，keep 规则随 `.androidlib` 走
 
 日期：2026-09-11　状态：active　模型：Claude Opus 5

@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
+import com.google.android.ump.ConsentDebugSettings;
 import com.google.android.ump.ConsentForm;
 import com.google.android.ump.ConsentInformation;
 import com.google.android.ump.ConsentRequestParameters;
@@ -65,7 +66,51 @@ public final class ConsentBridge {
     /** 同上：{@link #loadConsentForm} 写、{@link #showConsentForm} 读，两次都在 UI 线程，但保持一致。 */
     private static volatile ConsentForm loadedForm;
 
+    /** {@code null} / 空 = 不装调试设置，照 Google 按出口 IP 的真实判定。见 {@link #setDebugGeography}。 */
+    private static volatile String debugDeviceHashedId;
+
+    /** {@code ConsentDebugSettings.DebugGeography} 常量。只在上面那个非空时才生效。 */
+    private static volatile int debugGeography;
+
     private ConsentBridge() {
+    }
+
+    /**
+     * 把 UMP 的地理判定强制成某个档位，**只为在非欧洲的开发机上走通欧洲那条路**。
+     *
+     * <p>🔴 <b>没有它就没法验同意表单。</b> 真实判定由 Google 服务端按请求的出口 IP 做，
+     * 而挂欧洲 VPN 不够：2026-09-11 在 water_sort 实测，手机（含应用 uid 的 socket）
+     * 出口是法国 OVH 的 {@code 5.135.5.129}，UMP 仍然返回 {@code NOT_REQUIRED}
+     * （{@code consent_status=1}、{@code stored_info} 空、{@code is_pub_misconfigured=false}）。
+     * 数据中心 IP 拿不到受管辖区的判定，于是 {@code loadConsentForm} /
+     * {@code showConsentForm} / {@code showPrivacyOptionsForm} 三个方法一次都跑不到。
+     *
+     * <p>{@code testDeviceHashedId} <b>不用自己算</b>：UMP 第一次跑完就会在 logcat 里打
+     * {@code I/UserMessagingPlatform: Use new ConsentDebugSettings.Builder()
+     * .addTestDeviceHashedId("…") to set this as a debug device.}，照抄那一串即可。
+     * 它必须与本机对得上——{@code ConsentDebugSettings.Builder.build()} 的字节码里，
+     * 只有「列表里含本机哈希」或 {@code setForceTesting(true)} 两条路能把 {@code isTestDevice}
+     * 置真，对不上就整个调试设置无效（而且**不报错**，表现成「设了也没用」）。
+     *
+     * <p>🔴 <b>不要在正式包里调它。</b> 本方法每次调用都打一条 {@code Log.w}，
+     * 就是为了让「忘了摘掉」在日志里可见。调用点该被构建期的 define 圈住
+     * （water_sort 是 {@code ADMIN}），不要靠人记得删。
+     *
+     * @param testDeviceHashedId logcat 里那一串；{@code null} 或空 = 关掉调试设置。
+     * @param geography {@code ConsentDebugSettings.DebugGeography} 的常量，
+     *                  4.0.0 实读：DISABLED=0、EEA=1、NOT_EEA=2、REGULATED_US_STATE=3、OTHER=4。
+     */
+    public static void setDebugGeography(String testDeviceHashedId, int geography) {
+        debugDeviceHashedId = testDeviceHashedId;
+        debugGeography = geography;
+
+        if (testDeviceHashedId == null || testDeviceHashedId.length() == 0) {
+            Log.w(TAG, "同意流程的调试地理已关闭，回到按出口 IP 的真实判定。");
+            return;
+        }
+
+        Log.w(TAG, "同意流程被强制成调试地理 " + geography + "（测试设备 " + testDeviceHashedId
+                + "）。这条日志出现在正式包里，就是调用点的构建期 define 没圈住。");
     }
 
     /** {@code is_pub_misconfigured} ∨ 状态 ∈ {NOT_REQUIRED, OBTAINED}；没发过请求恒为假。 */
@@ -116,7 +161,8 @@ public final class ConsentBridge {
     }
 
     /**
-     * 发一次同意信息更新请求。其余参数照原包：**不设 debug geography、不设未成年标记**。
+     * 发一次同意信息更新请求。其余参数照原包：**不设未成年标记**；debug geography 默认也不设，
+     * 除非有人调过 {@link #setDebugGeography}（只该在带构建期 define 的验证包里发生）。
      *
      * <p>🔴 <b>{@code admobAppId} 不是可选的装饰，是 UMP 的硬要求。</b>
      * 4.0.0 的 {@code consent_sdk.zzp.zza()} 里这段是这样的：
@@ -150,7 +196,7 @@ public final class ConsentBridge {
                 consentInformation = info;
                 info.requestConsentInfoUpdate(
                         activity,
-                        buildParameters(admobAppId),
+                        buildParameters(activity, admobAppId),
                         new ConsentInformation.OnConsentInfoUpdateSuccessListener() {
                             @Override
                             public void onConsentInfoUpdateSuccess() {
@@ -167,8 +213,17 @@ public final class ConsentBridge {
         });
     }
 
-    private static ConsentRequestParameters buildParameters(String admobAppId) {
+    private static ConsentRequestParameters buildParameters(Activity activity, String admobAppId) {
         ConsentRequestParameters.Builder builder = new ConsentRequestParameters.Builder();
+
+        String hashedId = debugDeviceHashedId;
+        if (hashedId != null && hashedId.length() > 0) {
+            builder.setConsentDebugSettings(new ConsentDebugSettings.Builder(activity)
+                    .setDebugGeography(debugGeography)
+                    .addTestDeviceHashedId(hashedId)
+                    .build());
+        }
+
         if (admobAppId == null || admobAppId.length() == 0) {
             // 不抛：manifest 里可能有那行 meta-data（arrows 今天就是），抛了会把能跑的情况也弄死。
             // 但要留声——两条路都没有时 UMP 自己的报错落在 onConsentInfoUpdateFailure 里，
