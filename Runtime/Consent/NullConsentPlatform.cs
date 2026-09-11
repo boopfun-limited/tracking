@@ -23,6 +23,11 @@ namespace Tracking.Consent
 
         public string GppString => null;
 
+        /// <summary>没有跨线程回调，空转。</summary>
+        public void Pump()
+        {
+        }
+
         public void RequestConsentInfoUpdate(Action onSuccess, Action<string> onFailure)
         {
             onSuccess?.Invoke();

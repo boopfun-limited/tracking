@@ -104,9 +104,28 @@ namespace Tracking.Consent
             StartIfBothArrived();
         }
 
-        /// <summary>每帧调一次（与 <c>PlayClock.Tick</c> 同一处）。只为重试计时，没有待重试时是空转。</summary>
+        /// <summary>
+        /// 每帧调一次（与 <c>PlayClock.Tick</c> 同一处）。做三件事：交付平台侧排队的跨线程回调、
+        /// 在请求在途期间重读快速路径、到点了发重试。三件都没事做时是空转。
+        ///
+        /// 🔴 **不调它，整条流程就停住**——表单不弹、广告不放行。理由见
+        /// <see cref="IConsentPlatform.Pump"/>。
+        /// </summary>
         public void Tick()
         {
+            platform.Pump();
+
+            if (started && !finished)
+            {
+                // 🔴 快速路径必须在这里**重读**，不能只靠 SendRequest 里那一次同步读。
+                // Android 实现把请求排到 Android UI 线程执行，那一跳完成之前
+                // CanRequestAds 还是旧值（恒假）。只读一次的话，老用户那条
+                // 「沿用上次同意、先起广告」永远不触发——正是 PRD §6 要修掉的竞品行为，
+                // 而且症状一模一样地静默。窗口就是「请求已发出、服务端还没回话」这一段，
+                // 所以收尾之后不再轮询。
+                AllowAdsIfPossible();
+            }
+
             if (float.IsNaN(retryAt) || now() < retryAt)
             {
                 return;

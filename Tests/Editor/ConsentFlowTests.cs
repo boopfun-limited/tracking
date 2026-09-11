@@ -62,6 +62,63 @@ namespace Tracking.Consent.Tests.EditMode
             Assert.That(platform.RequestCount, Is.EqualTo(1));
         }
 
+        /// <summary>
+        /// 🔴 同一条偏离的**真机形态**：Android 实现把请求排到 Android UI 线程上执行，
+        /// 所以 <c>SendRequest</c> 里那次同步读可能还是旧值，快速路径要靠 <c>Tick()</c> 重读才触发。
+        /// 只读一次的话，这条路径在真机上永不触发——退化成竞品那个 bug，而且一样静默。
+        /// </summary>
+        [Test]
+        public void ReturningUserStillGetsAdsWhenThePlatformAnswersOneTickLate()
+        {
+            var platform = new FakePlatform { StoredConsentAllowsAds = true, DispatchIsDeferred = true };
+            var flow = NewFlow(platform, out var adsAllowed, out var finished);
+
+            flow.MarkTermsAccepted();
+            flow.MarkGameReady();
+            Assert.That(adsAllowed.Count, Is.EqualTo(0), "UI 线程还没真把请求发出去，这一刻读到的仍是旧值");
+
+            platform.CompleteDispatch();          // UI 线程跑到了那个 Runnable
+            Assert.That(adsAllowed.Count, Is.EqualTo(0), "但流程还没被驱动，事件不会自己冒出来");
+
+            flow.Tick();
+            Assert.That(adsAllowed.Count, Is.EqualTo(1), "下一帧重读就该放行——服务端还没回话");
+            Assert.That(finished.Count, Is.EqualTo(0));
+        }
+
+        /// <summary>收尾之后不再轮询平台：那已经不是快速路径的窗口了。</summary>
+        [Test]
+        public void FastPathPollingStopsAfterTheFlowFinishes()
+        {
+            var platform = new FakePlatform { IsConsentFormRequired = false };
+            var flow = NewFlow(platform, out var adsAllowed, out var finished);
+
+            flow.MarkTermsAccepted();
+            flow.MarkGameReady();
+            platform.CompleteRequest();
+            Assert.That(finished, Is.EqualTo(new[] { false }));
+
+            platform.StoredConsentAllowsAds = true;   // 收尾之后状态才变（比如用户去设置页改了）
+            flow.Tick();
+
+            Assert.That(adsAllowed.Count, Is.EqualTo(0), "收尾即收尾，不靠轮询把结论改回来");
+        }
+
+        /// <summary>
+        /// 🔴 <c>Tick()</c> 必须把平台的 <see cref="IConsentPlatform.Pump"/> 也带上——
+        /// 真机上跨线程回调全靠它交付，漏掉的症状是表单永不弹，而这里一条断言都不会红。
+        /// </summary>
+        [Test]
+        public void TickPumpsThePlatformEveryTime()
+        {
+            var platform = new FakePlatform();
+            var flow = NewFlow(platform, out _, out _);
+
+            flow.Tick();
+            flow.Tick();
+
+            Assert.That(platform.PumpCount, Is.EqualTo(2), "每帧都要泵，而且开始之前也要");
+        }
+
         /// <summary>新用户在两种做法下必须完全一样：回话之前不放广告，该弹的表单照弹。</summary>
         [Test]
         public void NewUserGetsNoAdsUntilTheFormIsDone()
@@ -317,16 +374,29 @@ namespace Tracking.Consent.Tests.EditMode
 
             public int ShowCount { get; private set; }
 
+            public int PumpCount { get; private set; }
+
+            /// <summary>
+            /// 复刻 Android 实现的 <c>runOnUiThread</c>：请求不是同步发出去的，
+            /// 于是 <c>CanRequestAds</c> 要晚一拍才翻。默认关，只有专门测这一条的用例打开。
+            /// </summary>
+            public bool DispatchIsDeferred { get; set; }
+
             /// <summary>🔴 复刻 UMP：调过更新请求之前，这个值恒为假。</summary>
             public bool CanRequestAds => requested && StoredConsentAllowsAds;
+
+            public void Pump() => PumpCount++;
 
             public void RequestConsentInfoUpdate(Action onSuccess, Action<string> onFailure)
             {
                 RequestCount++;
-                requested = true;
+                requested = !DispatchIsDeferred;
                 onRequestSuccess = onSuccess;
                 onRequestFailure = onFailure;
             }
+
+            /// <summary>UI 线程终于跑到了那个 Runnable，UMP 这才把「本进程已请求」置上。</summary>
+            public void CompleteDispatch() => requested = true;
 
             public void CompleteRequest() => onRequestSuccess();
 

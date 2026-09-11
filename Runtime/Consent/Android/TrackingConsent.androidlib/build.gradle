@@ -1,0 +1,52 @@
+// Android library 模块：只装 Java 桥（src/com/gthbj/tracking/consent/）。
+//
+// 🔴 **这个文件必须手写，不能让 Unity 生成**。Unity 给没有 build.gradle 的 .androidlib
+// 生成的模板里，那一行是注释掉的：
+//     //java.srcDirs = ['src']
+// 也就是说**它根本不编译 Java 源码**。照那份模板走的话，构建全绿、aar 里没有我们的类、
+// 真机上 JNI 找不到桥 → 同意流程静默失效。（实物在 arrows 的
+// Library/Bee/artifacts/Android/Gradle/unityLibrary/arrowsHaptics.androidlib/build.gradle。）
+//
+// 其余几行照 Unity 的生成模板抄，只增不改，减少与引擎升级对不上的面。
+
+apply plugin: 'com.android.library'
+
+dependencies {
+    implementation fileTree(dir: 'bin', include: ['*.jar'])
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    // 🔴 compileOnly 而不是 implementation：运行期这份 aar 由**游戏仓**的
+    // *Dependencies.xml 经 EDM4U 解析进 app（EDM4U 不扫 UPM 包目录，见包 README）。
+    // 这里再 implementation 一次等于同一个 artifact 进来两条路径，版本一旦不一致就是
+    // duplicate class。声明成 compileOnly 的含义正是「编译期要看得见，打包交给别人」。
+    compileOnly 'com.google.android.ump:user-messaging-platform:4.0.0'
+}
+
+android {
+    namespace "com.gthbj.tracking.consent"
+
+    // 🔴 跟着消费方的 Unity Android SDK 走。两款游戏当前都是 36；哪天对不上，
+    // gradle 会**响亮地**红（找不到 SDK / 编译失败），不是静默——所以这里写死是可接受的。
+    compileSdk 36
+
+    defaultConfig {
+        // 🔴 keep 规则随模块走的机制就是这一行：library 的 consumer 规则会传递到
+        // app 的 R8。本仓 README 记过「AppsFlyer / Firebase / UnityPlayer 自己保住了名字」，
+        // 靠的就是它。没有这行，游戏侧每家都得往自己的 proguard-user.txt 里各抄一份。
+        consumerProguardFiles 'proguard-consumer-rules.pro'
+    }
+
+    // 🔴 故意不写 minSdk / targetSdk：写了就是把包钉在某一款游戏的设定上，
+    // 而 library 的 minSdk 高于 app 时 gradle 会拒绝合并。不写则完全跟随 app。
+
+    lint {
+        abortOnError false
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+        }
+    }
+}
