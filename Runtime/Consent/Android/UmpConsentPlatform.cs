@@ -53,9 +53,35 @@ namespace Tracking.Consent.Android
 
         private readonly AndroidJavaClass bridge;
         private readonly AndroidJavaObject activity;
+        private readonly string admobAppId;
 
-        public UmpConsentPlatform()
+        /// <param name="admobAppId">
+        /// 形如 <c>ca-app-pub-0000000000000000~0000000000</c>。
+        ///
+        /// 🔴 **这是 UMP 的硬要求，不是可选项**：没有它、manifest 里也没有
+        /// <c>com.google.android.gms.ads.APPLICATION_ID</c> 时，UMP 4.0.0 直接让请求失败
+        /// （<c>consent_sdk.zzp.zza()</c> 抛 <c>zzg(3, "The UMP SDK requires a valid application ID…")</c>），
+        /// 后果是欧洲整场拿不到广告。逐条字节码见 <c>ConsentBridge.requestConsentInfoUpdate</c> 的注释。
+        ///
+        /// 🔴 **故意做成必填参数、不给默认值**：manifest 那条回落**不是游戏自己的东西**——
+        /// arrows 今天有那一行，是 GoogleMobileAds 插件带进来的，「AdMob 换 MAX」移除插件的那天
+        /// 它会跟着消失，而症状是欧洲静默无广告。让每个游戏在装配处显式写一次，
+        /// 这个依赖就不会在别人删插件时无声断掉。
+        ///
+        /// 它**不是密钥**：每个 APK 的 manifest 里都带着，是公开标识符。
+        /// </param>
+        public UmpConsentPlatform(string admobAppId)
         {
+            this.admobAppId = admobAppId;
+
+            if (string.IsNullOrEmpty(admobAppId))
+            {
+                Debug.LogError(
+                    "[Tracking] 没给 AdMob 应用 id。只有 manifest 里恰好有 "
+                    + "com.google.android.gms.ads.APPLICATION_ID 时同意流程才跑得起来；"
+                    + "两条都没有的话欧洲整场没有广告，而且只会表现为「请求失败」。");
+            }
+
             try
             {
                 using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -87,7 +113,8 @@ namespace Tracking.Consent.Android
 
         public void RequestConsentInfoUpdate(Action onSuccess, Action<string> onFailure)
         {
-            Invoke("requestConsentInfoUpdate", onSuccess, onFailure);
+            // 只有这一个桥方法在 activity 与回调之间多带一个参数，见构造函数注释。
+            Invoke("requestConsentInfoUpdate", onSuccess, onFailure, admobAppId ?? string.Empty);
         }
 
         public void LoadConsentForm(Action onLoaded, Action<string> onFailure)
@@ -167,7 +194,7 @@ namespace Tracking.Consent.Android
         /// 调一个带回调的桥方法。**恰好回调一次**由两边共同保证：Java 那侧的 <c>Once</c>
         /// 包住 UMP 的监听器，这里则在桥根本调不起来时**自己补一次失败**。
         /// </summary>
-        private void Invoke(string method, Action onSuccess, Action<string> onFailure)
+        private void Invoke(string method, Action onSuccess, Action<string> onFailure, string extra = null)
         {
             if (bridge == null)
             {
@@ -184,7 +211,16 @@ namespace Tracking.Consent.Android
 
             try
             {
-                bridge.CallStatic(method, activity, callback);
+                // 参数顺序必须和 Java 签名逐位对上：JNI 按「名字 + 参数个数 + 类型」派发，
+                // 对不上的症状是 NoSuchMethodError，而它会被下面 catch 成一次失败回调。
+                if (extra == null)
+                {
+                    bridge.CallStatic(method, activity, callback);
+                }
+                else
+                {
+                    bridge.CallStatic(method, activity, extra, callback);
+                }
             }
             catch (Exception error)
             {

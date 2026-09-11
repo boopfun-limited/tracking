@@ -89,9 +89,26 @@ UMP 调用走包内的 Java 桥 `Runtime/Consent/Android/TrackingConsent.android
 和 `AppSetIdUserProperty` 那次同一个形态。写成 Java 就与那条规则无关：那些是真引用，
 R8 改名时一起改（同一份构建里的佐证：本桥的匿名内部类没被 keep，`ConsentBridge$1 -> z4.c`，桥照样工作）。
 
-**消费方要做的只有两件事**：
+**消费方要做的三件事**：
 
-1. **声明 UMP 依赖**（放进自己仓里某个 `Editor/` 下的 `*Dependencies.xml`）：
+1. **给 `new UmpConsentPlatform(admobAppId)` 传自己的 AdMob 应用 id**（`ca-app-pub-…~…`）。
+
+   🔴 **这是 UMP 的硬要求，不是「用 AdMob 变现才需要」**：UMP 4.0.0 的 `consent_sdk.zzp.zza()`
+   先读 `setAdMobAppId` 的值，为空才回落读 manifest 的 `com.google.android.gms.ads.APPLICATION_ID`，
+   **两条都没有就直接 `throw zzg(3, "The UMP SDK requires a valid application ID…")`**，
+   请求失败、欧洲整场没广告。用 Unity Ads / MAX 变现的游戏一样要有这个 id ——
+   它只是 UMP 用来认「该显示哪个 app 的同意消息」的钥匙。
+
+   参数**故意必填、没有默认值**：manifest 那条回落不是游戏自己的东西。arrows 今天有那一行，
+   是 **GoogleMobileAds 插件**带进来的——「AdMob 换 MAX」移除插件的那天它会跟着消失，
+   而症状是欧洲静默无广告。显式写一次，这个依赖就不会在别人删插件时无声断掉。
+
+   它**不是密钥**（每个 APK 的 manifest 里都带着，是公开标识符），入库即可。
+   还要去 **AdMob 控制台**给该应用建并发布 EEA 同意消息，否则表单加载不出来。
+
+
+
+2. **声明 UMP 依赖**（放进自己仓里某个 `Editor/` 下的 `*Dependencies.xml`）：
 
    ```xml
    <androidPackage spec="com.google.android.ump:user-messaging-platform:4.0.0" />
@@ -101,7 +118,7 @@ R8 改名时一起改（同一份构建里的佐证：本桥的匿名内部类�
    （`Assets/GoogleMobileAds/Editor/GoogleUmpDependencies.xml`，GoogleMobileAds 插件带来的）；
    哪天那个插件随「AdMob 换 MAX」被移除，**这一行要留下**，否则桥编译得过、运行期整条同意流程静默失效。
 
-2. **每帧调一次 `consentFlow.Tick()`**（与 `PlayClock.Tick` 同一处）。跨线程回调靠它交付：
+3. **每帧调一次 `consentFlow.Tick()`**（与 `PlayClock.Tick` 同一处）。跨线程回调靠它交付：
    UMP 的监听器落在 Android 主线程上，不是 Unity 主线程。不调的症状是**表单永远不弹**。
 
 **R8 keep 规则不用游戏管**——`.androidlib` 用 `consumerProguardFiles` 把规则随模块传给 app 的 R8
