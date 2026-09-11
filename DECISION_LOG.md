@@ -11,6 +11,38 @@
 
 ---
 
+## D-20260911-02 碰第三方 Android SDK 一律经包内 Java 桥，keep 规则随 `.androidlib` 走
+
+日期：2026-09-11　状态：active　模型：Claude Opus 5
+
+**决策**：本包再要调某个第三方 Android SDK（这次是 Google UMP），**不从 C# 直接按字符串类名 JNI**，
+而是在包里放一个 `.androidlib` 模块，用 Java 调它，C# 只按名字找**我们自己的桥**；桥的 keep 规则写进
+该模块的 `proguard-consumer-rules.pro`，由 `consumerProguardFiles` **随包传给消费方 app 的 R8**。
+落地细节见 `README.md`「同意模块的 Android 侧」。
+
+**理由**：判据是**「要 keep 的是谁家的类」**。`AppSetIdUserProperty` 那条（README 里写着「规则必须放游戏仓」）
+keep 的是 `com.google.android.gms.appset.*`——别人家的库，包管不着，只能每个游戏各抄一份。
+这次不一样：写成 Java 之后对 UMP 的引用由 R8 自己保持一致，**根本不需要 keep**；
+剩下要 keep 的只有我们自己的桥，而自己的东西可以自带规则。两条并不矛盾，
+别照着前一条给 UMP 也去游戏仓抄一堆 keep。
+
+🔴 **这里差点写错一个前提，记下来**：初稿写的是「UMP 的类在正式包里必然被改名」。
+2026-09-11 在 arrows 正式包 `mapping.txt` 上实测**不是**——`com.google.android.ump.*` 原名保留。
+查 R8 的 `configuration.txt`，保它的是 **GoogleMobileAds Unity 插件**自带的
+`-keep public class com.google.android.ump.** { public *; }`，全工程唯一来源。
+所以正确的说法是：**arrows 今天靠的是一条随时会被移除的外部规则**（那个插件正是要换成 MAX 的），
+而 **water_sort 根本没有那个插件**。结论不变（要桥），但理由从「必然坏」改成
+「在一款游戏上今天就坏、在另一款上换 MAX 那天起坏」——这个差别决定了将来有人问
+「能不能省掉这层桥」时该怎么答。
+
+**代价**：① `.androidlib/build.gradle` 必须手写并自己钉 `compileSdk`——Unity 给没有 build.gradle 的
+`.androidlib` 生成的模板里 `//java.srcDirs = ['src']` 是注释掉的，**根本不编译 Java 而构建照样全绿**；
+和消费方的 SDK 版本对不上时会红，但是**响亮**地红。② 运行期依赖仍要消费方在自己仓的
+`*Dependencies.xml` 里声明（EDM4U 不扫 UPM 包目录，这条绕不过）。③ 这一面 EditMode 一行都编译不到，
+每次改桥或升 UMP 都要建**正式包**（minify 开）去 dex 里验描述符还在——验法写在 README 里。
+
+---
+
 ## D-20260911-01 同意流程模块照 oakever，只把「广告等 UMP」那条修好
 
 日期：2026-09-11　状态：active　拍板人：owner（「做成和 oakever 一模一样就行」「把重试那条改正过来，

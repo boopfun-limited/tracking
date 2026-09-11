@@ -18,11 +18,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>🔴 **这个类存在的首要理由不是「方便」，是 R8。** UMP 的 aar 自带的
  * {@code proguard.txt} 只保住 proto 字段（{@code -keepclassmembers class * extends
- * ...consent_sdk.zzqm}），**没有一条保它的公开 API 类名**。所以若从 C# 直接按
- * {@code "com.google.android.ump.UserMessagingPlatform"} 找类，正式包
- * （arrows {@code AndroidMinifyRelease: 1}）里那个名字已经被改掉，
- * JNI 抛 ClassNotFoundException、被 catch 成一行警告，**同意流程整条静默失效**。
- * 写成 Java 之后这些都是**真引用**，R8 改名时会一起改，代码照样跑。
+ * ...consent_sdk.zzqm}），**没有一条保它的公开 API 类名**。
+ *
+ * <p>🔴 **别被「现在没被改名」骗了**（2026-09-11 在 arrows 正式包 mapping.txt 上实测）：
+ * {@code com.google.android.ump.*} 今天确实原名保留，但保它的是
+ * **GoogleMobileAds Unity 插件**的 {@code googlemobileads-unity.aar} 里那条
+ * {@code -keep public class com.google.android.ump.** { public *; }}
+ * ——它是全工程唯一来源（R8 的 configuration.txt 里只有这一条）。而那个插件
+ * **正是要被 MAX 换掉的那个**（PRD §2-2），water_sort 更是从来没有它。
+ * 所以「从 C# 直接按字符串名字调 UMP」这条路：**在 water_sort 上今天就是坏的，
+ * 在 arrows 上从换 MAX 那天开始坏**，两种都静默（JNI 抛 ClassNotFoundException →
+ * 被 catch 成一行警告 → 同意流程整条失效，构建与安装全绿）。
+ *
+ * <p>写成 Java 就与那条规则无关了：这些都是**真引用**，R8 改名时会一起改，代码照样跑。
+ * 同一份构建里就有现成的佐证——本类的匿名内部类没有任何 keep 规则，
+ * mapping.txt 里 {@code ConsentBridge$1 -> z4.c}，而桥照样工作。
  *
  * <p>只剩本类与 {@link ConsentCallback} 自己要被 keep（C# 按名字找它们）——
  * 规则随模块走，见同目录 {@code proguard-consumer-rules.pro}。

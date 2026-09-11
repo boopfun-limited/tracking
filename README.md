@@ -76,10 +76,18 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 **EditMode 一行都编译不到**，写进去的任何判断快车道全绿也证明不了它对（同 `Tracking.Identity.Android`）。
 
 UMP 调用走包内的 Java 桥 `Runtime/Consent/Android/TrackingConsent.androidlib`。
-🔴 **桥是为 R8 存在的，不是为了好看**：UMP 的 aar 自带 `proguard.txt` 只保 proto 字段，
-**没有一条保它的公开 API 类名**，所以从 C# 直接按 `"com.google.android.ump.UserMessagingPlatform"`
-找类，在开了 `AndroidMinifyRelease` 的正式包里必然 `ClassNotFoundException` ——
-和 `AppSetIdUserProperty` 那次同一个静默形态。写成 Java 之后那些是真引用，R8 改名时一起改。
+
+🔴 **桥是为 R8 存在的，不是为了好看。** UMP 的 aar 自带 `proguard.txt` 只保 proto 字段，
+**没有一条保它的公开 API 类名**。
+
+🔴 **别照着「现在没被改名」下结论**（2026-09-11 在 arrows 正式包 `mapping.txt` 实测）：
+`com.google.android.ump.*` 今天确实原名保留，但保它的是 **GoogleMobileAds Unity 插件**的
+`googlemobileads-unity.aar` 里那条 `-keep public class com.google.android.ump.** { public *; }`
+——R8 的 `configuration.txt` 里它是**唯一来源**。而那个插件正是「AdMob 换 MAX」要移除的那个，
+**water_sort 根本没有它**。所以「C# 直接按字符串名字调 UMP」这条路
+**在 water_sort 上今天就是坏的、在 arrows 上从换 MAX 那天起坏**，两种都静默——
+和 `AppSetIdUserProperty` 那次同一个形态。写成 Java 就与那条规则无关：那些是真引用，
+R8 改名时一起改（同一份构建里的佐证：本桥的匿名内部类没被 keep，`ConsentBridge$1 -> z4.c`，桥照样工作）。
 
 **消费方要做的只有两件事**：
 
