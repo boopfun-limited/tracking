@@ -14,6 +14,8 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 | `Tracking` | `Runtime/Core` | 全部 | `IAnalyticsBackend`（缝）/ `AnalyticsParameter`（三种值类型）、`BufferedAnalyticsBackend`（后端就绪前把**事件与用户属性排进同一条队列**按原序补报）、`NullAnalyticsBackend` |
 | `Tracking.Firebase.Android` | `Runtime/Firebase` | Android | `FirebaseAnalyticsBackend.AttachWhenReady`——**全项目唯一碰 `Firebase.*` 的地方**（precompiled 引用 `Firebase.App.dll` / `Firebase.Analytics.dll` / `Firebase.TaskExtension.dll`；SDK 本体由游戏自己导入） |
 | `Tracking.Identity.Android` | `Runtime/Identity` | Android | `AppSetIdUserProperty.SetWhenReady`——异步取 **App Set ID**（Google 对标 IDFV 的开发者范围标识符）并写成 GA4 用户属性 `app_set_id` + `app_set_id_scope` |
+| `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
+| `Tracking.Consent.Android` | `Runtime/Consent/Android` | Android | `UmpConsentPlatform`——Google UMP 的 JNI 接线，接包内 Java 桥 `TrackingConsent.androidlib`（**唯一碰 `com.google.android.ump.*` 的地方**） |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
 | `LevelTracking.Tests.EditMode` | `Tests/Editor` | Editor | `LevelTrackerEmitsExactlyItsSchema`（表 == 行为）、`PlayClockTests`（三条不变量）、名字合规 |
@@ -66,6 +68,50 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    带回来时它也回来，而 `user_pseudo_id` / AFID / App Set ID 都不会（2026-09-09 真机实测）——事件历史因此跟着「这份存档」。
    首会话里早于它的 `first_open` / `session_start` 不带，要在 BigQuery 里按 `user_pseudo_id` 回填。
    它不是任何 SDK 的 ID，也识别不到个人；🔴 **游戏侧不要再自己设 user_id**（接口上没有这个方法，就是为了没法设）。
+
+## 同意模块的 Android 侧
+
+判定（什么时候请求、失败怎么办、什么时候放行广告）在全平台的 `Tracking.Consent` 里，EditMode 可测；
+`Tracking.Consent.Android` **只有接线**——它 `includePlatforms: ["Android"]`，
+**EditMode 一行都编译不到**，写进去的任何判断快车道全绿也证明不了它对（同 `Tracking.Identity.Android`）。
+
+UMP 调用走包内的 Java 桥 `Runtime/Consent/Android/TrackingConsent.androidlib`。
+🔴 **桥是为 R8 存在的，不是为了好看**：UMP 的 aar 自带 `proguard.txt` 只保 proto 字段，
+**没有一条保它的公开 API 类名**，所以从 C# 直接按 `"com.google.android.ump.UserMessagingPlatform"`
+找类，在开了 `AndroidMinifyRelease` 的正式包里必然 `ClassNotFoundException` ——
+和 `AppSetIdUserProperty` 那次同一个静默形态。写成 Java 之后那些是真引用，R8 改名时一起改。
+
+**消费方要做的只有两件事**：
+
+1. **声明 UMP 依赖**（放进自己仓里某个 `Editor/` 下的 `*Dependencies.xml`）：
+
+   ```xml
+   <androidPackage spec="com.google.android.ump:user-messaging-platform:4.0.0" />
+   ```
+
+   理由同 `play-services-appset` 那条——**EDM4U 不扫 UPM 包目录**。arrows 已经有这一行
+   （`Assets/GoogleMobileAds/Editor/GoogleUmpDependencies.xml`，GoogleMobileAds 插件带来的）；
+   哪天那个插件随「AdMob 换 MAX」被移除，**这一行要留下**，否则桥编译得过、运行期整条同意流程静默失效。
+
+2. **每帧调一次 `consentFlow.Tick()`**（与 `PlayClock.Tick` 同一处）。跨线程回调靠它交付：
+   UMP 的监听器落在 Android 主线程上，不是 Unity 主线程。不调的症状是**表单永远不弹**。
+
+**R8 keep 规则不用游戏管**——`.androidlib` 用 `consumerProguardFiles` 把规则随模块传给 app 的 R8
+（AppsFlyer / Firebase 保住名字靠的就是这个机制）。这是它与 `AppSetIdUserProperty` 那条的区别：
+那边要 keep 的是**别人家**的库，只能写进游戏的 `proguard-user.txt`；这边要 keep 的是**我们自己的**桥。
+
+🔴 **`TrackingConsent.androidlib/build.gradle` 必须手写，不能留给 Unity 生成**：
+Unity 给没有 `build.gradle` 的 `.androidlib` 生成的模板里 `//java.srcDirs = ['src']` 是**注释掉的**
+——它根本不编译 Java 源码，而构建照样全绿。
+
+**验收（每次改桥或升 UMP 都要重跑一遍）**：建**正式包**（minify 开），去 dex 里验描述符还在：
+
+```bash
+unzip -o <apk> 'classes*.dex' -d /tmp/dex && \
+  for d in /tmp/dex/classes*.dex; do strings -a "$d" | grep -c 'Lcom/gthbj/tracking/consent/ConsentBridge;'; done
+```
+
+命中 0 次就是 keep 规则没生效 / 模块没进构建。构建绿、安装成功、EditMode 全绿都证明不了这一面。
 
 ## 接口加成员时
 

@@ -1,0 +1,19 @@
+{
+    "name": "Tracking.Consent.Android",
+    "rootNamespace": "Tracking.Consent.Android",
+    "references": [
+        "Tracking",
+        "Tracking.Consent"
+    ],
+    "includePlatforms": [
+        "Android"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

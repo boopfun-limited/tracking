@@ -21,13 +21,38 @@ namespace Tracking.Consent
     public interface IConsentPlatform
     {
         /// <summary>
+        /// 把实现方排队的回调交付到**调用它的这个线程**上。
+        /// <see cref="ConsentFlow.Tick"/> 每帧调一次，所以「调用它的线程」就是 Unity 主线程。
+        ///
+        /// 🔴 **这个方法存在的理由**：UMP 的监听器由 Android 的 <c>Handler.post</c> 投递，
+        /// 落在 **Android 主线程（UI 线程）**上，那不是 Unity 主线程。上面那条
+        /// 「回调必须在 Unity 主线程」的要求，实现方就靠排队 + 这里交付来兑现。
+        ///
+        /// 🔴 **代价说在明处**：游戏不每帧调 <c>Tick()</c>，回调就永远不交付，
+        /// 整条同意流程停住（表单不弹、广告不放行）。这是有意选的失败形态——
+        /// 比「藏一个 <c>DontDestroyOnLoad</c> 的 GameObject 在包里自己泵」好：
+        /// 那东西没建起来时同样什么都不发生，却**在 EditMode 里一条也测不到**。
+        ///
+        /// 没有跨线程回调的实现（Editor、测试假件）这里是空转。
+        /// </summary>
+        void Pump();
+
+        /// <summary>
         /// 现在可不可以初始化广告 SDK。UMP 的语义是
         /// <c>is_pub_misconfigured</c> ∨ 状态 ∈ {NOT_REQUIRED, OBTAINED}。
         ///
         /// 🔴 **这个值在 <see cref="RequestConsentInfoUpdate"/> 被调用之前恒为假**，
-        /// 与用户上次选过什么无关：UMP 只在本进程调过一次更新请求之后才肯把持久化状态读出来。
+        /// 与用户上次选过什么无关：UMP 只在本进程调过一次更新请求之后才肯把持久化状态读出来
+        /// （4.0.0 实测：<c>consent_sdk.zzj.canRequestAds()</c> 先查一个在
+        /// <c>requestConsentInfoUpdate</c> 头上同步置位的布尔 <c>zzj.zzg</c>）。
         /// 竞品 oakever 正是把「沿用上次同意」的检查排在请求**之前**，于是那条路径永不触发
         /// （PRD §6）。**要读它，必须在调用之后。**
+        ///
+        /// 🔴 **它是「最终一致」的，不保证调用一返回就新**：Android 实现要把请求绕到
+        /// Android UI 线程上执行（<c>runOnUiThread</c>），那一跳之后这个值才会翻。
+        /// 所以 <see cref="ConsentFlow"/> 在请求在途期间**每帧重读一次**，
+        /// 而不是只在 <c>SendRequest</c> 里读那一次。少了那次重读，快速路径就退化成
+        /// 竞品那条永不触发的死路——而且**一样是静默的**。
         /// </summary>
         bool CanRequestAds { get; }
 
