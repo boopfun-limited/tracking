@@ -3,6 +3,7 @@ package com.gthbj.tracking.consent;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.util.Log;
 
 import com.google.android.ump.ConsentForm;
 import com.google.android.ump.ConsentInformation;
@@ -51,6 +52,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 布尔（{@code zzj.zzg}，在 {@code requestConsentInfoUpdate} 头上同步置位），没调过就直接假。
  */
 public final class ConsentBridge {
+
+    private static final String TAG = "TrackingConsent";
 
     /**
      * 🔴 {@code volatile}：写在 UI 线程（{@link #requestConsentInfoUpdate} 的 Runnable 里），
@@ -113,10 +116,32 @@ public final class ConsentBridge {
     }
 
     /**
-     * 发一次同意信息更新请求。参数照原包：**不设 debug geography、不设未成年标记**
-     * （{@code new ConsentRequestParameters.Builder().build()}）。
+     * 发一次同意信息更新请求。其余参数照原包：**不设 debug geography、不设未成年标记**。
+     *
+     * <p>🔴 <b>{@code admobAppId} 不是可选的装饰，是 UMP 的硬要求。</b>
+     * 4.0.0 的 {@code consent_sdk.zzp.zza()} 里这段是这样的：
+     * <pre>
+     *   String appId = params.zza();                 // = setAdMobAppId(...) 的值
+     *   if (TextUtils.isEmpty(appId)) {              // 没设就回落读 manifest
+     *       appId = metaData.getString("com.google.android.gms.ads.APPLICATION_ID");
+     *       if (TextUtils.isEmpty(appId))
+     *           throw zzg(3, "The UMP SDK requires a valid application ID …");
+     *   }
+     * </pre>
+     * 两条路都没有就直接失败（走 {@code onConsentInfoUpdateFailure}），于是欧洲整场没广告。
+     *
+     * <p>所以这里**显式传**，不吃 manifest 那条回落：
+     * <ul>
+     * <li>water_sort 压根没有 AdMob 插件，manifest 里没有那行 meta-data；</li>
+     * <li>arrows 今天有，但那行是 <b>GoogleMobileAds 插件</b>带进来的——
+     *     「AdMob 换 MAX」把插件移除的那天它会跟着消失，而症状是欧洲静默无广告。</li>
+     * </ul>
+     * 传空串 / null 时仍然回落到 manifest（不改变 arrows 今天的行为），但会打一条错误日志。
+     *
+     * @param admobAppId 形如 {@code ca-app-pub-0000000000000000~0000000000}。
      */
-    public static void requestConsentInfoUpdate(final Activity activity, ConsentCallback callback) {
+    public static void requestConsentInfoUpdate(
+            final Activity activity, final String admobAppId, ConsentCallback callback) {
         final ConsentCallback once = new Once(callback);
         post(activity, once, new Runnable() {
             @Override
@@ -125,7 +150,7 @@ public final class ConsentBridge {
                 consentInformation = info;
                 info.requestConsentInfoUpdate(
                         activity,
-                        new ConsentRequestParameters.Builder().build(),
+                        buildParameters(admobAppId),
                         new ConsentInformation.OnConsentInfoUpdateSuccessListener() {
                             @Override
                             public void onConsentInfoUpdateSuccess() {
@@ -140,6 +165,21 @@ public final class ConsentBridge {
                         });
             }
         });
+    }
+
+    private static ConsentRequestParameters buildParameters(String admobAppId) {
+        ConsentRequestParameters.Builder builder = new ConsentRequestParameters.Builder();
+        if (admobAppId == null || admobAppId.length() == 0) {
+            // 不抛：manifest 里可能有那行 meta-data（arrows 今天就是），抛了会把能跑的情况也弄死。
+            // 但要留声——两条路都没有时 UMP 自己的报错落在 onConsentInfoUpdateFailure 里，
+            // 混在「网络不通」之类的失败里看不出是配置问题。
+            Log.e(TAG, "没有传 AdMob 应用 id，只能指望 manifest 里的 "
+                    + "com.google.android.gms.ads.APPLICATION_ID；两条都没有的话 UMP 会直接失败，"
+                    + "后果是欧洲整场拿不到广告。");
+            return builder.build();
+        }
+
+        return builder.setAdMobAppId(admobAppId).build();
     }
 
     /** 加载同意表单，成功后把它扣在 {@link #loadedForm} 上等 {@link #showConsentForm} 用。 */
