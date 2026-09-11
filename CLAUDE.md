@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+**通用协议（东西放哪、git、什么该记）见 `AGENTS.md`，决策见 `DECISION_LOG.md`，本文件不重复**，
+只写模块边界与踩过的坑。
+
 `com.gthbj.tracking`：埋点公共库。消费者是 `gthbj/arrows` 与 `gthbj/water_sort`，都按 40 位 commit SHA 钉本仓。
 **2026-09-09 由 `com.gthbj.level-tracking` 改名而来**（旧名下的传输层与关卡域混在一个程序集里，
 名字只说了后者）。改名连同把内容切成四个程序集，依赖单向：域模块 → `Tracking`，域模块之间互不引用。
