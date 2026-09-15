@@ -32,6 +32,10 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 3. 装配根：Android 上 `var buffer = new BufferedAnalyticsBackend(); FirebaseAnalyticsBackend.AttachWhenReady(buffer);`，
    要跨 App 归因再加一行 `AppSetIdUserProperty.SetWhenReady(buffer);`（**传 buffer 不传已 Attach 的后端**——
    属性与事件共用同一条有序队列，补报时才落在「当时那一刻」）。
+   🔴 **`AttachWhenReady` 就绪时会开采集、把四项同意写死 GRANTED**（照 oakever，D-20260911-01 / PRD §5.1）；
+   玩家在 UMP 里的真实选择由 UMP 回话后自己经反射推给 Firebase，写死的值只管「本次冷启到 UMP 回话」这一段。
+   前提：**游戏发出同意请求要晚于 Firebase 就绪**，否则本进程 UMP 刚推进来的拒绝可能被盖回 GRANTED、盖一整场
+   （arrows 在 Boot 收尾才发；新接的游戏按自己的时点核一遍）。
    🔴 用 `AppSetIdUserProperty` 的游戏**必须自己声明** `com.google.android.gms:play-services-appset`
    （放进自己仓里某个 `Editor/` 下的 `*Dependencies.xml`）：**EDM4U 不扫 UPM 包目录**，
    放在本包里的依赖声明它看不见（2026-09-09 实测：解析器跑了、文件在 `Library/PackageCache/…/Editor/` 里、

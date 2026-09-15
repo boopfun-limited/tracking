@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Tracking;
 using Firebase;
 using Firebase.Analytics;
@@ -47,6 +48,9 @@ namespace Tracking.Firebase.Android
                         return;
                     }
 
+                    // 照 oakever 写死同意（D-20260911-01、PRD §5.1）：先于接上，回放的缓冲事件也落在这份同意值里。
+                    GrantConsent();
+
                     var sink = new FirebaseSink();
                     // 🔴 先设身份再接上：接上那一刻缓冲件会按序回放此前攒下的事件，它们都得带 user_id。
                     // 安装标识由包自己生成（InstallId），游戏侧不用、也不要再设 user_id。
@@ -57,6 +61,41 @@ namespace Tracking.Firebase.Android
             catch (Exception error)
             {
                 Debug.LogWarning($"[Analytics] Firebase 初始化入口抛了，本次会话不上报：{error}");
+            }
+        }
+
+        /// <summary>
+        /// 开采集 + 四项同意写死 GRANTED——照 oakever（D-20260911-01「写死 GRANTED」、PRD §5.1；原包在
+        /// `Application.onCreate` 里设）。
+        ///
+        /// 🔴 **用户在 UMP 里的选择不靠这里传**：UMP 每次请求回话后自己经反射调 Firebase 的 `setConsent`，
+        /// 拒绝即写回四项 DENIED（原包 root 实测）。写死的 GRANTED 因此只管「本次冷启到 UMP 回话」这一段，
+        /// 原包实测约 5.5 秒——这是照抄的行为，不是缺陷（PRD §9-7），别顺手「修好」。
+        ///
+        /// 🔴 **顺序前提**：这一步必须落在本进程 UMP 回话之前，否则会把刚推进来的拒绝盖回 GRANTED、盖一整场。
+        /// 原包是 onCreate 同步设，天然在前；这里在依赖检查回调里（慢机一两秒），靠的是游戏发同意信号比它晚
+        /// （arrows 在 Boot 收尾）。游戏若在 Firebase 就绪之前就发出同意请求，这个前提不成立。
+        ///
+        /// PRD §5.2「点下条款后再设一次」不做：同意流程要等条款信号才发请求，同一进程里那之前不会有 UMP 推送，
+        /// 再设一次改不了任何值。
+        /// </summary>
+        private static void GrantConsent()
+        {
+            try
+            {
+                FirebaseAnalytics.SetAnalyticsCollectionEnabled(true);
+                FirebaseAnalytics.SetConsent(new Dictionary<ConsentType, ConsentStatus>
+                {
+                    { ConsentType.AdStorage, ConsentStatus.Granted },
+                    { ConsentType.AnalyticsStorage, ConsentStatus.Granted },
+                    { ConsentType.AdUserData, ConsentStatus.Granted },
+                    { ConsentType.AdPersonalization, ConsentStatus.Granted },
+                });
+            }
+            catch (Exception error)
+            {
+                // 接口契约：不得抛。设不上顶多这一场按 Firebase 已存的同意值跑，不该崩掉装配。
+                Debug.LogWarning($"[Analytics] 设 Firebase 同意值失败：{error}");
             }
         }
 
