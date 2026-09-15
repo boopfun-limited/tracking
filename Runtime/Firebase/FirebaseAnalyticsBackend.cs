@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Tracking;
 using Firebase;
 using Firebase.Analytics;
@@ -30,6 +29,9 @@ namespace Tracking.Firebase.Android
                 throw new ArgumentNullException(nameof(buffer));
             }
 
+            // 🔴 先于依赖检查、同步写死同意（D-20260916-01）：游戏的同意请求可能比依赖检查先回来，见 GrantConsent。
+            GrantConsent();
+
             try
             {
                 FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
@@ -48,9 +50,6 @@ namespace Tracking.Firebase.Android
                         return;
                     }
 
-                    // 照 oakever 写死同意（D-20260911-01、PRD §5.1）：先于接上，回放的缓冲事件也落在这份同意值里。
-                    GrantConsent();
-
                     var sink = new FirebaseSink();
                     // 🔴 先设身份再接上：接上那一刻缓冲件会按序回放此前攒下的事件，它们都得带 user_id。
                     // 安装标识由包自己生成（InstallId），游戏侧不用、也不要再设 user_id。
@@ -65,16 +64,17 @@ namespace Tracking.Firebase.Android
         }
 
         /// <summary>
-        /// 开采集 + 四项同意写死 GRANTED——照 oakever（D-20260911-01「写死 GRANTED」、PRD §5.1；原包在
-        /// `Application.onCreate` 里设）。
+        /// 开采集 + 四项同意写死 GRANTED——照 oakever（D-20260911-01「写死 GRANTED」、PRD §5.1），时点也照它：
+        /// 原包在 `Application.onCreate` 里同步设，这里在 <see cref="AttachWhenReady"/> **一进来**同步设（D-20260916-01）。
         ///
         /// 🔴 **用户在 UMP 里的选择不靠这里传**：UMP 每次请求回话后自己经反射调 Firebase 的 `setConsent`，
         /// 拒绝即写回四项 DENIED（原包 root 实测）。写死的 GRANTED 因此只管「本次冷启到 UMP 回话」这一段，
         /// 原包实测约 5.5 秒——这是照抄的行为，不是缺陷（PRD §9-7），别顺手「修好」。
         ///
-        /// 🔴 **顺序前提**：这一步必须落在本进程 UMP 回话之前，否则会把刚推进来的拒绝盖回 GRANTED、盖一整场。
-        /// 原包是 onCreate 同步设，天然在前；这里在依赖检查回调里（慢机一两秒），靠的是游戏发同意信号比它晚
-        /// （arrows 在 Boot 收尾）。游戏若在 Firebase 就绪之前就发出同意请求，这个前提不成立。
+        /// 🔴 **顺序前提：这一步必须落在本进程 UMP 回话之前**，否则会把刚推进来的拒绝盖回 GRANTED、盖一整场。
+        /// 所以不能挪进依赖检查的回调（慢机一两秒）：老玩家的同意请求在首个场景头几帧就发（arrows 真机进程起来约 0.9 秒，
+        /// UMP 再约 0.6 秒回话）。C# 的 Firebase API 要等那个回调，于是走包内 Java 桥 `TrackingFirebase.androidlib`——
+        /// Java 侧的 Firebase 在 `FirebaseInitProvider` 里就起好了。
         ///
         /// PRD §5.2「点下条款后再设一次」不做：同意流程要等条款信号才发请求，同一进程里那之前不会有 UMP 推送，
         /// 再设一次改不了任何值。
@@ -83,21 +83,22 @@ namespace Tracking.Firebase.Android
         {
             try
             {
-                FirebaseAnalytics.SetAnalyticsCollectionEnabled(true);
-                FirebaseAnalytics.SetConsent(new Dictionary<ConsentType, ConsentStatus>
+                using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var bridge = new AndroidJavaClass(ConsentBridgeClassName))
                 {
-                    { ConsentType.AdStorage, ConsentStatus.Granted },
-                    { ConsentType.AnalyticsStorage, ConsentStatus.Granted },
-                    { ConsentType.AdUserData, ConsentStatus.Granted },
-                    { ConsentType.AdPersonalization, ConsentStatus.Granted },
-                });
+                    bridge.CallStatic("grantAll", activity);
+                }
             }
             catch (Exception error)
             {
-                // 接口契约：不得抛。设不上顶多这一场按 Firebase 已存的同意值跑，不该崩掉装配。
+                // 接口契约：不得抛。桥调不起来顶多这一场按 Firebase 已存的同意值跑，不该崩掉装配。
                 Debug.LogWarning($"[Analytics] 设 Firebase 同意值失败：{error}");
             }
         }
+
+        /// <summary>C# 按名字找的 Java 桥；名字由模块自带的 keep 规则保住（D-20260911-02）。</summary>
+        private const string ConsentBridgeClassName = "com.gthbj.tracking.firebase.FirebaseConsentBridge";
 
         private sealed class FirebaseSink : IAnalyticsBackend
         {

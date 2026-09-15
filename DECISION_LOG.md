@@ -11,6 +11,25 @@
 
 ---
 
+## D-20260916-01 Firebase 写死 GRANTED 改为 `AttachWhenReady` 一进来经 Java 桥同步写
+
+日期：2026-09-16　状态：active　拍板人：owner（arrows：「按你说的改。然后打普通测试包」）　模型：Claude Opus 5
+
+**决策**：D-20260911-01「写死 GRANTED」那一步从 `AttachWhenReady` 的依赖就绪回调（#14）挪到方法**一进来**，经新的
+`Runtime/Firebase/TrackingFirebase.androidlib`（`com.gthbj.tracking.firebase.FirebaseConsentBridge.grantAll`）同步写：
+开采集 + 四项同意 GRANTED，与原包 oakever 在 `Application.onCreate` 里写的时点一致。
+
+**理由**：#14 写在回调里时假设「游戏的同意请求比 Firebase 就绪晚」。arrows 真机逐帧录冷启证伪了它：首个场景第一帧
+在进程起来约 0.9 秒，老玩家的同意请求就在那一刻发，UMP 再约 0.6 秒回话并把真实选择推给 Firebase；而 C# 侧的依赖检查
+慢机上要一两秒——GRANTED 落在推送之后，拒绝过的玩家会被盖回「已同意」一整场，原包没有这个问题。C# 的 Firebase API
+要等依赖检查，所以只能走 Java（Java 侧 Firebase 在 `FirebaseInitProvider` 里就起好了）；碰三方 SDK 走包内 Java 桥是
+D-20260911-02 的既有口径。
+
+**代价**：C# 按名字调桥，keep 规则随模块走，正式包要在 dex 里验 `Lcom/gthbj/tracking/firebase/FirebaseConsentBridge;`。
+`compileOnly` 钉的 firebase-analytics 版本只影响编译；消费方运行期低于 21.5.0 时桥会抛、被 C# 接住记一行警告、这一场不写死。
+
+---
+
 ## D-20260911-03 欧洲那条路只认 `SetDebugGeography` 验证，旋钮放包里、设备哈希不入库
 
 日期：2026-09-11　状态：active　模型：Claude Opus 5

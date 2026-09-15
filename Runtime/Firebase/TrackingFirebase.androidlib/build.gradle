@@ -1,0 +1,43 @@
+// Android library 模块：只装 Firebase 同意值的 Java 桥（src/com/gthbj/tracking/firebase/）。
+//
+// 🔴 **这个文件必须手写，不能让 Unity 生成**：Unity 给没有 build.gradle 的 .androidlib 生成的模板里
+// `java.srcDirs = ['src']` 是注释掉的，根本不编译 Java 源码——构建全绿、aar 里没有桥、真机上 JNI 找不到。
+// 与 Runtime/Consent/Android/TrackingConsent.androidlib/build.gradle 同一份模板，理由见那份的注释。
+
+apply plugin: 'com.android.library'
+
+dependencies {
+    implementation fileTree(dir: 'bin', include: ['*.jar'])
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    // 🔴 compileOnly：运行期的 firebase-analytics 由游戏仓导入的 Firebase Unity SDK 经 EDM4U 带进 app，
+    // 这里再 implementation 一次就是同一个 artifact 两条路径。版本照 arrows 当前 Firebase Unity 13.16.0 带的那份；
+    // 只影响编译。消费方运行期低于 21.5.0（没有 AD_USER_DATA / AD_PERSONALIZATION）时桥会抛，
+    // 被 C# 接住记一行警告、这一场不写死——响亮到日志里，不会崩。
+    compileOnly 'com.google.firebase:firebase-analytics:23.2.0'
+}
+
+android {
+    namespace "com.gthbj.tracking.firebase"
+
+    // 跟着消费方的 Unity Android SDK 走，对不上时 gradle 会响亮地红，理由同 TrackingConsent.androidlib。
+    compileSdk 36
+
+    defaultConfig {
+        // keep 规则随模块传给 app 的 R8（D-20260911-02）；C# 按名字调的桥类靠它保住名字。
+        consumerProguardFiles 'proguard-consumer-rules.pro'
+    }
+
+    // 故意不写 minSdk / targetSdk：完全跟随 app。
+
+    lint {
+        abortOnError false
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+        }
+    }
+}
