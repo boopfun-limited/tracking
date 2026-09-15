@@ -12,7 +12,7 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 | 程序集 | 目录 | 平台 | 内容 |
 |---|---|---|---|
 | `Tracking` | `Runtime/Core` | 全部 | `IAnalyticsBackend`（缝）/ `AnalyticsParameter`（三种值类型）、`BufferedAnalyticsBackend`（后端就绪前把**事件与用户属性排进同一条队列**按原序补报）、`NullAnalyticsBackend` |
-| `Tracking.Firebase.Android` | `Runtime/Firebase` | Android | `FirebaseAnalyticsBackend.AttachWhenReady`——**全项目唯一碰 `Firebase.*` 的地方**（precompiled 引用 `Firebase.App.dll` / `Firebase.Analytics.dll` / `Firebase.TaskExtension.dll`；SDK 本体由游戏自己导入） |
+| `Tracking.Firebase.Android` | `Runtime/Firebase` | Android | `FirebaseAnalyticsBackend.AttachWhenReady`——**全项目唯一碰 `Firebase.*` 的地方**（Java 侧的同意值另经 `TrackingFirebase.androidlib` 桥写；precompiled 引用 `Firebase.App.dll` / `Firebase.Analytics.dll` / `Firebase.TaskExtension.dll`；SDK 本体由游戏自己导入） |
 | `Tracking.Identity.Android` | `Runtime/Identity` | Android | `AppSetIdUserProperty.SetWhenReady`——异步取 **App Set ID**（Google 对标 IDFV 的开发者范围标识符）并写成 GA4 用户属性 `app_set_id` + `app_set_id_scope` |
 | `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
 | `Tracking.Consent.Android` | `Runtime/Consent/Android` | Android | `UmpConsentPlatform`——Google UMP 的 JNI 接线，接包内 Java 桥 `TrackingConsent.androidlib`（**唯一碰 `com.google.android.ump.*` 的地方**） |
@@ -32,10 +32,12 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 3. 装配根：Android 上 `var buffer = new BufferedAnalyticsBackend(); FirebaseAnalyticsBackend.AttachWhenReady(buffer);`，
    要跨 App 归因再加一行 `AppSetIdUserProperty.SetWhenReady(buffer);`（**传 buffer 不传已 Attach 的后端**——
    属性与事件共用同一条有序队列，补报时才落在「当时那一刻」）。
-   🔴 **`AttachWhenReady` 就绪时会开采集、把四项同意写死 GRANTED**（照 oakever，D-20260911-01 / PRD §5.1）；
+   🔴 **`AttachWhenReady` 一进来就同步开采集、把四项同意写死 GRANTED**（照 oakever 在 `onCreate` 里写的时点，D-20260911-01 / D-20260916-01）；
    玩家在 UMP 里的真实选择由 UMP 回话后自己经反射推给 Firebase，写死的值只管「本次冷启到 UMP 回话」这一段。
-   前提：**游戏发出同意请求要晚于 Firebase 就绪**，否则本进程 UMP 刚推进来的拒绝可能被盖回 GRANTED、盖一整场
-   （arrows 在 Boot 收尾才发；新接的游戏按自己的时点核一遍）。
+   写法是包内 Java 桥 `TrackingFirebase.androidlib`（keep 规则随模块走），**不等** C# 侧的依赖检查——那要一两秒，
+   而老玩家的同意请求在首个场景头几帧就发（arrows 真机实测进程起来约 0.9 秒、UMP 再约 0.6 秒回话），晚写会把拒绝盖回一整场。
+   唯一前提：`AttachWhenReady` 在游戏发同意信号之前调——放在装配根里就天然满足。建完正式包在 dex 里验
+   `Lcom/gthbj/tracking/firebase/FirebaseConsentBridge;` 还在。
    🔴 用 `AppSetIdUserProperty` 的游戏**必须自己声明** `com.google.android.gms:play-services-appset`
    （放进自己仓里某个 `Editor/` 下的 `*Dependencies.xml`）：**EDM4U 不扫 UPM 包目录**，
    放在本包里的依赖声明它看不见（2026-09-09 实测：解析器跑了、文件在 `Library/PackageCache/…/Editor/` 里、

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  空清单。本模块不加权限、不加组件，只装一个 Java 桥。
+  AGP 8 起包名走 build.gradle 的 namespace，这里不再写 package 属性。
+  文件本身不能少——Unity 与 AGP 都靠它认这是个 Android library 模块。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
