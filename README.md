@@ -187,7 +187,7 @@ adb logcat -d | grep 'addTestDeviceHashedId'
 ## 名字归谁
 
 库发出的事件名与参数名（`LevelTrackingEvents`）由库拥有，**改名 = 破坏性升版本**：GA4 的事件名一旦发出就进了
-property 的字典，改名等于新开一个事件，历史不跟；自定义维度不回填。两游戏各自决定何时升 SHA。
+property 的字典，改名等于新开一个事件，历史不跟；自定义维度不回填。各消费仓各自决定何时升 SHA。
 游戏专属名字（平事件、专属参数、取值集合）留在各游戏自己的 `AnalyticsEvents.cs`。
 
 🔴 **程序集与命名空间改名不算 breaking 语义**（消费方改几行 `using` 与 asmdef 引用即可），
