@@ -26,9 +26,11 @@ android {
     defaultConfig {
         // keep 规则随模块传给 app 的 R8（D-20260911-02）；C# 按名字调的桥类靠它保住名字。
         consumerProguardFiles 'proguard-consumer-rules.pro'
-    }
 
-    // 故意不写 minSdk / targetSdk：完全跟随 app。
+        // 🔴 必须写：不写 = minSdk 1，给每个消费方隐含三条危险权限。理由与取值同 TrackingConsent.androidlib
+        // （firebase-analytics 23.2.0 自己就要 23）。
+        minSdk 21
+    }
 
     lint {
         abortOnError false
