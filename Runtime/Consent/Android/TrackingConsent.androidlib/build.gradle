@@ -34,10 +34,14 @@ android {
         // app 的 R8。本仓 README 记过「AppsFlyer / Firebase / UnityPlayer 自己保住了名字」，
         // 靠的就是它。没有这行，游戏侧每家都得往自己的 proguard-user.txt 里各抄一份。
         consumerProguardFiles 'proguard-consumer-rules.pro'
-    }
 
-    // 🔴 故意不写 minSdk / targetSdk：写了就是把包钉在某一款游戏的设定上，
-    // 而 library 的 minSdk 高于 app 时 gradle 会拒绝合并。不写则完全跟随 app。
+        // 🔴 minSdk 必须写。不写**不是**「跟随 app」，是 1：清单合并器拿 minSdk 顶替没写的 targetSdk，
+        // 把本库当成 targetSdk < 4 的老库，往每个消费方隐含 READ_PHONE_STATE 与读 / 写外部存储三条
+        // 危险权限——构建全绿，只在 Play 的权限列表上看得见（2026-09-19 water_sort 的 merger 报告实证）。
+        // 取值两头夹：≥ 16 合并器就不再隐含任何权限；≤ 每个消费方的 minSdk 才合并得过（高了是响亮地红）。
+        // 21 两头都有余量：本桥运行期离不开的 UMP 4.0.0 自己就要 23。targetSdk 照旧不写，合并器按 minSdk 算。
+        minSdk 21
+    }
 
     lint {
         abortOnError false
