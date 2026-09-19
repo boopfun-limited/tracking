@@ -1,0 +1,8 @@
+{
+    "name": "Tracking.Ads",
+    "rootNamespace": "Tracking.Ads",
+    "references": [
+        "Tracking"
+    ],
+    "noEngineReferences": true
+}

@@ -4,7 +4,8 @@
     "references": [
         "Tracking",
         "LevelTracking",
-        "Tracking.Consent"
+        "Tracking.Consent",
+        "Tracking.Ads"
     ],
     "includePlatforms": [
         "Editor"
