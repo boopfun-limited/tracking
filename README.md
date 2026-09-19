@@ -206,3 +206,48 @@ property 的字典，改名等于新开一个事件，历史不跟；自定义�
 ## 版本
 
 只按 commit SHA 钉；`package.json` 的 `version` 是 UPM 的形式要求，不承载升级语义。
+
+
+## Ads：广告全流程埋点
+
+引用 `Tracking.Ads` 程序集与命名空间，构造 `AdTracker(IAnalyticsBackend)`。不依赖 MAX、Firebase 或关卡模块，SDK 回调与广告策略由宿主接线。
+
+```csharp
+var ads = new AdTracker(analytics);
+var load = ads.Request(AdEvents.Formats.Rewarded, unitId); // 紧邻 SDK 加载调用
+load.Fill(true); // 加载回调；失败用 Fill(false, error parameters)
+var flow = ads.Opportunity(AdEvents.Formats.Rewarded, "revive",
+    AnalyticsParameter.Of("level_number", levelNumber));
+flow.Decision(AdEvents.Results.Show, "ad_ready");
+flow.ShowRequest(load.RequestId); // 紧邻 SDK 展示调用
+flow.ShowResult(true); // 展示成功回调
+flow.RewardEarned(); // SDK 奖励回调
+flow.Close(); // SDK 关闭回调
+flow.RewardResult(true, "granted"); // 游戏实际发奖后
+```
+
+| 事件 | 发射入口 | 口径 |
+|---|---|---|
+| `ad_opportunity` | `AdTracker.Opportunity` | 真实业务操作产生机会；不从 IsReady / UI 刷新上报 |
+| `ad_decision` | `AdFlow.Decision` | `result=show/free/skip`，`reason` 由宿主词汇定义 |
+| `ad_request` | `AdTracker.Request` | 显式 SDK 加载请求 |
+| `ad_fill` | `AdLoad.Fill` / `AdTracker.AutomaticFill` | `result=success/failure`；失败附 `error_code` / `reason` |
+| `ad_show_request` | `AdFlow.ShowRequest` | 实际展示调用；携带对应预加载的 `request_id` |
+| `ad_show_result` | `AdFlow.ShowResult` | `result=success/failure`；表示展示结果，不是收入 |
+| `ad_clicked` | `AdFlow.Click` / `AdTracker.Click` | SDK 点击回调；避开 Firebase 保留名 `ad_click` |
+| `ad_closed` | `AdFlow.Close` | SDK 关闭回调；`reward_earned=0/1` 是关闭时已知状态 |
+| `ad_reward_earned` | `AdFlow.RewardEarned` | SDK 确认奖励资格 |
+| `ad_reward_result` | `AdFlow.RewardResult` | `result=granted/not_granted`；游戏权益实际交付结果 |
+| `ad_impression` | `AdTracker.Impression` | 展示级收入；零收入有效，负值 / NaN / Infinity 不发 |
+
+`AdLoad` 每次请求生成 `request_id`，`AdFlow` 每次业务机会生成 `ad_flow_id`，不使用设备标识。
+业务上下文复制到 flow，不在异步回调中重新读取关号。一次流程的 decision、show request/result、close、reward earned/result 各最多发一次；点击可多次，收入由 SDK 每次收入回调分别提交，不按业务 flow 去重（横幅有多次刷新收入）。奖励资格与关闭不强制顺序，未获得资格不报告奖励到账。
+
+`duration_ms`：fill 为请求到结果；show result 为展示调用到结果；closed 为 SDK 展示成功到关闭的经过时间，**不是视频播放时长**。未观察到展示成功时不编造关闭时长。缺失回调保留未闭合，不推断失败。
+横幅自动刷新只有回调时用 `AutomaticFill`，标 `load_origin=sdk_auto`，不虚构 `request_id` 或耗时；显式加载标 `load_origin=explicit`。客户端显式加载成功率按同一批 `request_id` 的 success / request 计算，不把横幅自动刷新混进分子，也不等同 MAX 网络竞价填充率。
+
+错误参数传数值码与归一化原因，不发送可能含请求数据的原始 SDK error message。`request_id` / `ad_flow_id` 用于原始数据关联，不注册为高基数 GA4 自定义维度。
+
+Firebase 保留名依据：https://firebase.google.com/docs/reference/kotlin/com/google/firebase/analytics/FirebaseAnalytics.Event 。公共库使用 `ad_clicked`；收入 `ad_impression` 是 Firebase 支持的标准事件。
+
+> 文档维护：GPT-6（2026-09-19，广告模块接入说明）
