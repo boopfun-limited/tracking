@@ -15,6 +15,21 @@
 - **加新的域模块**（广告 / IAP…）放 `Runtime/<域>/`，asmdef 只引 `Tracking`。边界判据是「机制进库，词汇留在游戏」：事件名与标准参数、时序状态机、去重进库；placement 名字、何时展示的判定、**以及广告 / 支付 SDK 本体与其后端**留在游戏。🔴 加事件前先查 GA4 自动采集里有没有同名的（AdMob 关联后 Firebase 自己发 `ad_impression`），撞名会静默混数据。
 - 包不认识任何游戏的包名 / 路径以外的事：`FirebaseAndroidConfig` 只按传入的 application id 生成，跳不跳是宿主的分支。
 - 测试在 `Tests/Editor`，由消费方的 `manifest.json` `testables` 带起来跑；本仓没有独立的 Unity 工程。
+  **但不必为了跑一遍就去开消费方工程**：全平台程序集（`Tracking` / `Tracking.Consent` / `Tracking.Ads` /
+  `LevelTracking`）是纯 .NET，用 Unity 自带的 Roslyn 直接编译、拿 Unity 自带的 NUnit 反射跑 `[Test]` 即可，
+  秒级。直推 `main` 成了默认（D-20260920-01）之后这就是推之前唯一那道门，别省。
+  ```bash
+  U=/Applications/Unity/Hub/Editor/*/Unity.app/Contents        # 装了哪个版本都行
+  R=$(ls -d $U/Resources/Scripting/NetCoreRuntime/shared/Microsoft.NETCore.App/*)
+  $U/Resources/Scripting/NetCoreRuntime/dotnet $U/Resources/Scripting/DotNetSdkRoslyn/csc.dll \
+    -target:exe -nostdlib $(ls $R/*.dll | sed 's/^/-r:/') \
+    -r:$U/Resources/PackageManager/BuiltInPackages/com.unity.ext.nunit/net40/unity-custom/nunit.framework.dll \
+    <要编的 .cs> <一个反射调 [Test] 的 Main>
+  ```
+  🔴 **`-r:` 必须是 `$R/*.dll` 整份**，少了 `mscorlib.dll` 那个门面就报「类型 Attribute 在未引用的程序集中定义」——
+  Unity 那份 NUnit 是 net40 的。要引 `UnityEngine` 的文件（`InstallId`、`PlayerPrefsTermsStore`）**编得过、跑不了**
+  （没有 Player Loop），只能拿它验编译；`*.Android` 连编都编不了，见上一条。跑绿之后**再做一次变异检查**：
+  把被测的那行判定摘掉、重跑，必须恰好红对应那条用例——不然绿的可能只是「用例没碰到它」。
 - 来路与设计取舍：`Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md`（arrows 仓 `docs/prd/PRD_20260906_1854_…`）。
 
-> 文档维护：Claude Opus 5（2026-09-09 改名 `level-tracking` → `tracking`，切四个程序集）；Claude Fable 5.1（2026-09-06 建仓）
+> 文档维护：Claude Opus 5（2026-09-20 补「不开消费方工程也能跑全平台程序集的测试」）；Claude Opus 5（2026-09-09 改名 `level-tracking` → `tracking`，切四个程序集）；Claude Fable 5.1（2026-09-06 建仓）
