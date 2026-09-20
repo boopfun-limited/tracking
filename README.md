@@ -14,7 +14,7 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 | `Tracking` | `Runtime/Core` | 全部 | `IAnalyticsBackend`（缝）/ `AnalyticsParameter`（三种值类型）、`BufferedAnalyticsBackend`（后端就绪前把**事件与用户属性排进同一条队列**按原序补报）、`NullAnalyticsBackend` |
 | `Tracking.Firebase.Android` | `Runtime/Firebase` | Android | `FirebaseAnalyticsBackend.AttachWhenReady`——**全项目唯一碰 `Firebase.*` 的地方**（Java 侧的同意值另经 `TrackingFirebase.androidlib` 桥写；precompiled 引用 `Firebase.App.dll` / `Firebase.Analytics.dll` / `Firebase.TaskExtension.dll`；SDK 本体由游戏自己导入） |
 | `Tracking.Identity.Android` | `Runtime/Identity` | Android | `AppSetIdUserProperty.SetWhenReady`——异步取 **App Set ID**（Google 对标 IDFV 的开发者范围标识符）并写成 GA4 用户属性 `app_set_id` + `app_set_id_scope` |
-| `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
+| `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`、`TermsGate`（首启条款弹窗的**判定**：弹不弹、两条事件、同意落盘、放行流程——**界面留在游戏**）+ `ITermsStore`（缝）/ `PlayerPrefsTermsStore`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
 | `Tracking.Consent.Android` | `Runtime/Consent/Android` | Android | `UmpConsentPlatform`——Google UMP 的 JNI 接线，接包内 Java 桥 `TrackingConsent.androidlib`（**唯一碰 `com.google.android.ump.*` 的地方**） |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
@@ -74,6 +74,32 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
    带回来时它也回来，而 `user_pseudo_id` / AFID / App Set ID 都不会（2026-09-09 真机实测）——事件历史因此跟着「这份存档」。
    首会话里早于它的 `first_open` / `session_start` 不带，要在 BigQuery 里按 `user_pseudo_id` 回填。
    它不是任何 SDK 的 ID，也识别不到个人；🔴 **游戏侧不要再自己设 user_id**（接口上没有这个方法，就是为了没法设）。
+
+## 条款弹窗（首启）
+
+**界面留在游戏**，包只管判定（`TermsGate`，D-20260920-02）。规格是 PRD §5.2：全球新装都弹、
+一颗同意按钮、无拒绝、不点不放行；挡住什么由游戏自己定（挡整条冷启协程还是只挡点击）。
+
+```csharp
+// 装配根；backend 是上面第 3 步那个，consentFlow 不接广告的游戏传 null
+var gate = new TermsGate(new PlayerPrefsTermsStore("<游戏自己的键>"), backend, consentFlow);
+if (gate.ShowIfNeeded(BuildMyFullScreenDialog))
+{
+    // 弹了：把自己的开屏挡住；那颗唯一的按钮上接 gate.Accept
+}
+```
+
+🔴 **已经上线过条款弹窗的游戏必须把自己原来那个键传进来**（arrows 是存档字段 `legalConsentAccepted`、
+water_sort 是 `WaterSort.LegalConsent.v1`、arrows-3d 是 `arrows3d.legal.accepted.v1`、
+boopdoku 是 `boopdoku.Legal.ConsentAccepted`）；落点不是 PlayerPrefs 的（arrows 在存档里）自己实现
+`ITermsStore` 那两个成员，一共十来行。换成包自带的新键 = **所有同意过的老玩家冷启再吃一道全屏闸**，
+而且没有任何门会红。
+
+🔴 **老玩家那条路也要走 `ShowIfNeeded`**：不弹归不弹，`ConsentFlow` 的「条款已同意」信号照样得发，
+否则 UMP 请求永远不发、欧洲整场没广告、一声不响——这是这个类存在的首要理由，不是顺手加的。
+
+两条事件（`dlg_show_law` / `btn_click_law`）由 `TermsGate` 发。**在它之前包里只有名字、没有发射点**：
+GA4 里钉上本 SHA 之前一条都没有，那段空白不是「没人看弹窗」。
 
 ## 同意模块的 Android 侧
 
@@ -250,4 +276,4 @@ flow.RewardResult(true, "granted"); // 游戏实际发奖后
 
 Firebase 保留名依据：https://firebase.google.com/docs/reference/kotlin/com/google/firebase/analytics/FirebaseAnalytics.Event 。公共库使用 `ad_clicked`；收入 `ad_impression` 是 Firebase 支持的标准事件。
 
-> 文档维护：GPT-6（2026-09-19，广告模块接入说明）
+> 文档维护：Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
