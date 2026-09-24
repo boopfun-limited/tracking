@@ -1,7 +1,7 @@
 # tracking
 
-Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthbj/arrows` 抽出（来路见
-`Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md`），第二个消费者是 `gthbj/water_sort`。
+Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boopfun-limited/arrows` 抽出（来路见
+`Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md`），第二个消费者是 `boopfun-limited/water_sort`。
 
 **2026-09-09 由 `level-tracking` 改名而来**：包里从一开始就不只有关卡——整条 Firebase 传输通道
 （就绪缓冲、Firebase 墙、`google-services.json` 构建步骤）都在里面，而它们跟关卡没有关系。
@@ -26,8 +26,10 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `gthb
 
 ## 接入（每个游戏）
 
-1. `Packages/manifest.json`：`"com.gthbj.tracking": "https://github.com/gthbj/tracking.git#<40 位 commit SHA>"`；
+1. `Packages/manifest.json`：`"com.gthbj.tracking": "https://github.com/boopfun-limited/tracking.git#<40 位 commit SHA>"`；
    要跑包内测试再加 `"testables": ["com.gthbj.tracking"]`。
+   本仓已从 `gthbj` 迁入 `boopfun-limited` 组织（旧地址由 GitHub 重定向）：现行文档与配置一律写 `boopfun-limited/<仓>`；
+   `DECISION_LOG.md` 与 `Docs~/` 里的 `gthbj/<仓>` 是当时的记录，不改写；`com.gthbj.*` 是包名不是地址，不随迁移改。
 2. 导入 Firebase Unity SDK 的 `FirebaseAnalytics.unitypackage`（可删桌面 / iOS 原生库），`Assets/google-services.json` 入库。
 3. 装配根：Android 上 `var buffer = new BufferedAnalyticsBackend(); FirebaseAnalyticsBackend.AttachWhenReady(buffer);`，
    要跨 App 归因再加一行 `AppSetIdUserProperty.SetWhenReady(buffer);`（**传 buffer 不传已 Attach 的后端**——
