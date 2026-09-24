@@ -14,13 +14,15 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boop
 | `Tracking` | `Runtime/Core` | 全部 | `IAnalyticsBackend`（缝）/ `AnalyticsParameter`（三种值类型）、`BufferedAnalyticsBackend`（后端就绪前把**事件与用户属性排进同一条队列**按原序补报）、`NullAnalyticsBackend` |
 | `Tracking.Firebase.Android` | `Runtime/Firebase` | Android | `FirebaseAnalyticsBackend.AttachWhenReady`——**全项目唯一碰 `Firebase.*` 的地方**（Java 侧的同意值另经 `TrackingFirebase.androidlib` 桥写；precompiled 引用 `Firebase.App.dll` / `Firebase.Analytics.dll` / `Firebase.TaskExtension.dll`；SDK 本体由游戏自己导入） |
 | `Tracking.Identity.Android` | `Runtime/Identity` | Android | `AppSetIdUserProperty.SetWhenReady`——异步取 **App Set ID**（Google 对标 IDFV 的开发者范围标识符）并写成 GA4 用户属性 `app_set_id` + `app_set_id_scope` |
-| `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`、`TermsGate`（首启条款弹窗的**判定**：弹不弹、两条事件、同意落盘、放行流程——**界面留在游戏**）+ `ITermsStore`（缝）/ `PlayerPrefsTermsStore`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
+| `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`、`TermsGate`（首启条款弹窗的**判定**：弹不弹、两条事件、同意落盘、放行流程——**皮留在游戏**，弹窗上的字与链接见 `Tracking.Consent.UI`）+ `ITermsStore`（缝）/ `PlayerPrefsTermsStore`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
 | `Tracking.Consent.Android` | `Runtime/Consent/Android` | Android | `UmpConsentPlatform`——Google UMP 的 JNI 接线，接包内 Java 桥 `TrackingConsent.androidlib`（**唯一碰 `com.google.android.ump.*` 的地方**） |
+| `Tracking.Consent.UI` | `Runtime/Consent/UI` | 全部（可选，引 uGUI） | 首启条款弹窗上的**字与下划线链接**（D-20260924-01）：`TermsCopy`（标题 / 正文 / 同意键 / 两个文件名，14 种语言，真源 `Resources/TrackingTermsCopy.json`）、`TextLinks`（uGUI 正文里的词画下划线、各自可点）。**皮留在游戏** |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
-| `LevelTracking.Tests.EditMode` | `Tests/Editor` | Editor | `LevelTrackerEmitsExactlyItsSchema`（表 == 行为）、`PlayClockTests`（三条不变量）、名字合规 |
+| `LevelTracking.Tests.EditMode` | `Tests/Editor` | Editor | `LevelTrackerEmitsExactlyItsSchema`（表 == 行为）、`PlayClockTests`（三条不变量）、名字合规；同意 UI：`TermsCopyTests`（14 种语言齐全、点哪个词开哪份——引 uGUI，只能在消费方工程里跑） |
 
 🔴 **依赖是单向的**：`LevelTracking` → `Tracking`，`Tracking.Firebase.Android` → `Tracking`，`Tracking.Identity.Android` → `Tracking`。
+`Tracking.Consent.UI` 一个本包程序集都不引，只引 uGUI（`UnityEngine.UI`；`package.json` 因此声明依赖 `com.unity.ugui`）。
 关卡模块与将来的其它域模块（广告、IAP…）**互不引用**，各自只认核心。
 只要关卡的游戏就只在 asmdef 里引 `LevelTracking`，编译期就把别的挡在外面。
 
@@ -79,7 +81,7 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boop
 
 ## 条款弹窗（首启）
 
-**界面留在游戏**，包只管判定（`TermsGate`，D-20260920-02）。规格是 PRD §5.2：全球新装都弹、
+**弹窗的皮留在游戏**（卡片、压暗层、颜色、字体、字号、按钮样式）：判定在 `TermsGate`（D-20260920-02），弹窗上的字与两个文件名的下划线链接在可选的 `Tracking.Consent.UI`（D-20260924-01，见下一小节）。规格是 PRD §5.2：全球新装都弹、
 一颗同意按钮、无拒绝、不点不放行；挡住什么由游戏自己定（挡整条冷启协程还是只挡点击）。
 
 ```csharp
@@ -102,6 +104,25 @@ boopdoku 是 `boopdoku.Legal.ConsentAccepted`）；落点不是 PlayerPrefs 的�
 
 两条事件（`dlg_show_law` / `btn_click_law`）由 `TermsGate` 发。**在它之前包里只有名字、没有发射点**：
 GA4 里钉上本 SHA 之前一条都没有，那段空白不是「没人看弹窗」。
+
+### 弹窗上的字与下划线链接（`Tracking.Consent.UI`，可选）
+
+所有游戏共用一份措辞（14 种语言，取自 arrows 的首启弹窗），游戏只出皮。游戏的 asmdef 引 `Tracking.Consent.UI`：
+
+```csharp
+var copy = TermsCopy.For(myUiLanguage.ToString());      // 传界面语言的名字（arrows / sudoku 的 UiLanguage 同名）；没有的落英文
+title.text = copy.consentTitle;
+acceptLabel.text = copy.consentAccept;                  // 按钮上接 gate.Accept
+copy.ShowBody(bodyText, wrapWidth, OpenTerms, OpenPrivacy);  // 填正文，两个文件名画下划线、可点
+// 之后再量 bodyText 的高度、摆版式：ShowBody 把换行写死了
+```
+
+- 🔴 **界面字体要把 `Runtime/Consent/UI/Resources/TrackingTermsCopy.json` 算进去**：界面字体多是按自家文案裁的子集，
+  这里的字不在子集里，手机上是空白、不报错（编辑器里被系统字体补上，截图看不出）。这份文件改了措辞，各游戏都要重出字体。
+- 正文排法：arrows 用 36 号、行距 1.16、`wrapWidth` 792（它的卡片 900 减两侧各 54），sudoku 照用，14 种语言逐一截图看过。
+  字号或宽度换了，中日文可能折出孤字（最后一行只剩一两个字），要重看。
+- 下划线与正文同色，热区是透明底的 `Button`；位置在 `LateUpdate` 里按渲染时的画布缩放现量，理由见 `TextLinks` 的类注释。
+- json 在 `Resources` 里，**钉了包就进 APK**（几 KB），与 `.androidlib` 一样不受 asmdef 引用约束。
 
 ## 同意模块的 Android 侧
 
@@ -278,4 +299,4 @@ flow.RewardResult(true, "granted"); // 游戏实际发奖后
 
 Firebase 保留名依据：https://firebase.google.com/docs/reference/kotlin/com/google/firebase/analytics/FirebaseAnalytics.Event 。公共库使用 `ad_clicked`；收入 `ad_impression` 是 Firebase 支持的标准事件。
 
-> 文档维护：Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
+> 文档维护：Claude Opus 5.5（2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）

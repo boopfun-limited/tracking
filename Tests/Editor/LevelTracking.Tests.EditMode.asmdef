@@ -5,7 +5,9 @@
         "Tracking",
         "LevelTracking",
         "Tracking.Consent",
-        "Tracking.Ads"
+        "Tracking.Ads",
+        "Tracking.Consent.UI",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [
         "Editor"

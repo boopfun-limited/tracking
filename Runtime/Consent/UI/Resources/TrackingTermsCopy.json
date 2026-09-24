@@ -1,0 +1,116 @@
+{
+  "packs": [
+    {
+      "language": "English",
+      "consentTitle": "WELCOME",
+      "consentBody": "Please read our {0} and {1}.\nTapping the button below means you have read and agree to them.",
+      "consentAccept": "ACCEPT",
+      "consentTermsLabel": "Terms of Use",
+      "consentPrivacyLabel": "Privacy Notice"
+    },
+    {
+      "language": "ChineseSimplified",
+      "consentTitle": "欢迎",
+      "consentBody": "请先阅读我们的{0}与{1}。\n点击下方按钮即表示你已阅读并同意上述内容。",
+      "consentAccept": "同意并继续",
+      "consentTermsLabel": "使用条款",
+      "consentPrivacyLabel": "隐私保护说明"
+    },
+    {
+      "language": "German",
+      "consentTitle": "WILLKOMMEN",
+      "consentBody": "Bitte lies unsere {0} und unseren {1}.\nMit dem Tippen auf die Schaltfläche unten bestätigst du, dass du sie gelesen hast und ihnen zustimmst.",
+      "consentAccept": "ZUSTIMMEN",
+      "consentTermsLabel": "Nutzungsbedingungen",
+      "consentPrivacyLabel": "Datenschutzhinweis"
+    },
+    {
+      "language": "French",
+      "consentTitle": "BIENVENUE",
+      "consentBody": "Veuillez lire nos {0} et notre {1}.\nEn appuyant sur le bouton ci-dessous, vous confirmez les avoir lus et les accepter.",
+      "consentAccept": "ACCEPTER",
+      "consentTermsLabel": "Conditions d'utilisation",
+      "consentPrivacyLabel": "Avis de confidentialité"
+    },
+    {
+      "language": "Spanish",
+      "consentTitle": "BIENVENIDO",
+      "consentBody": "Lee nuestros {0} y nuestro {1}.\nAl tocar el botón de abajo, confirmas que los has leído y los aceptas.",
+      "consentAccept": "ACEPTAR",
+      "consentTermsLabel": "Términos de uso",
+      "consentPrivacyLabel": "Aviso de privacidad"
+    },
+    {
+      "language": "Portuguese",
+      "consentTitle": "BEM-VINDO",
+      "consentBody": "Leia nossos {0} e nosso {1}.\nAo tocar no botão abaixo, você confirma que os leu e concorda com eles.",
+      "consentAccept": "ACEITAR",
+      "consentTermsLabel": "Termos de uso",
+      "consentPrivacyLabel": "Aviso de privacidade"
+    },
+    {
+      "language": "Italian",
+      "consentTitle": "BENVENUTO",
+      "consentBody": "Leggi i nostri {0} e la nostra {1}.\nToccando il pulsante qui sotto confermi di averli letti e di accettarli.",
+      "consentAccept": "ACCETTA",
+      "consentTermsLabel": "Termini di utilizzo",
+      "consentPrivacyLabel": "Informativa sulla privacy"
+    },
+    {
+      "language": "Dutch",
+      "consentTitle": "WELKOM",
+      "consentBody": "Lees onze {0} en {1}.\nDoor op de knop hieronder te tikken bevestig je dat je ze hebt gelezen en ermee akkoord gaat.",
+      "consentAccept": "ACCEPTEREN",
+      "consentTermsLabel": "Gebruiksvoorwaarden",
+      "consentPrivacyLabel": "Privacyverklaring"
+    },
+    {
+      "language": "Polish",
+      "consentTitle": "WITAJ",
+      "consentBody": "Zapoznaj się z naszymi {0} oraz {1}.\nKliknięcie przycisku poniżej oznacza, że je przeczytałeś i akceptujesz.",
+      "consentAccept": "AKCEPTUJĘ",
+      "consentTermsLabel": "Warunkami korzystania",
+      "consentPrivacyLabel": "Informacją o prywatności"
+    },
+    {
+      "language": "Turkish",
+      "consentTitle": "HOŞ GELDİN",
+      "consentBody": "Lütfen {0} ve {1} belgelerimizi okuyun.\nAşağıdaki düğmeye dokunmanız, bunları okuduğunuz ve kabul ettiğiniz anlamına gelir.",
+      "consentAccept": "KABUL ET",
+      "consentTermsLabel": "Kullanım Koşulları",
+      "consentPrivacyLabel": "Gizlilik Bildirimi"
+    },
+    {
+      "language": "Indonesian",
+      "consentTitle": "SELAMAT DATANG",
+      "consentBody": "Silakan baca {0} dan {1} kami.\nMenekan tombol di bawah berarti Anda telah membacanya dan menyetujuinya.",
+      "consentAccept": "SETUJU",
+      "consentTermsLabel": "Ketentuan Penggunaan",
+      "consentPrivacyLabel": "Pemberitahuan Privasi"
+    },
+    {
+      "language": "ChineseTraditional",
+      "consentTitle": "歡迎",
+      "consentBody": "請先閱讀我們的{0}與{1}。\n點擊下方按鈕即表示你已閱讀並同意上述內容。",
+      "consentAccept": "同意並繼續",
+      "consentTermsLabel": "使用條款",
+      "consentPrivacyLabel": "隱私保護說明"
+    },
+    {
+      "language": "Japanese",
+      "consentTitle": "ようこそ",
+      "consentBody": "{0}と{1}をお読みください。\n下のボタンを押すと、内容を読んで同意したものとみなされます。",
+      "consentAccept": "同意する",
+      "consentTermsLabel": "利用規約",
+      "consentPrivacyLabel": "プライバシー通知"
+    },
+    {
+      "language": "Korean",
+      "consentTitle": "환영합니다",
+      "consentBody": "{0} 및 {1}을 읽어 주세요.\n아래 버튼을 누르면 내용을 읽고 동의한 것으로 간주됩니다.",
+      "consentAccept": "동의합니다",
+      "consentTermsLabel": "이용약관",
+      "consentPrivacyLabel": "개인정보 처리방침"
+    }
+  ]
+}

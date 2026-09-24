@@ -13,6 +13,7 @@
 - **`Tracking.Firebase.Android` 只有 APK 能编译**（`includePlatforms: ["Android"]`，EditMode 不编译它）：改它之后的证据只能来自消费方的 Android 构建，别拿 EditMode 全绿当证据。判定一律留在 `Tracking`（全平台）里。
 - **`.androidlib` 的 `build.gradle` 必须写 `minSdk`**：不写不是「跟随 app」而是 1，清单合并器会给**每个消费方**隐含 `READ_PHONE_STATE` 与读写外部存储三条危险权限，构建全绿、只在 Play 的权限列表上露出来（两个桥都中过，2026-09-19 修）。新桥照抄 `TrackingConsent.androidlib/build.gradle`，取值理由在它的注释里；验法是消费方构建后 merger 报告里没有 `targetSdkVersion < 4`。🔴 **`.androidlib` 不受 asmdef 引用约束**：「只引 `LevelTracking` 就把别的挡在编译期外」只对 C# 成立，`.androidlib` 钉了包就进 APK，消费方一行不调桥也一样（arrows-3d 2026-09-19 实证：没接 Firebase / UMP，包照样带着那三条权限）。
 - **加新的域模块**（广告 / IAP…）放 `Runtime/<域>/`，asmdef 只引 `Tracking`。边界判据是「机制进库，词汇留在游戏」：事件名与标准参数、时序状态机、去重进库；placement 名字、何时展示的判定、**以及广告 / 支付 SDK 本体与其后端**留在游戏。🔴 加事件前先查 GA4 自动采集里有没有同名的（AdMob 关联后 Firebase 自己发 `ad_impression`），撞名会静默混数据。
+- **`Tracking.Consent.UI` 是「词汇留在游戏」的例外**（owner 2026-09-24，D-20260924-01）：首启条款弹窗的措辞所有游戏共用一份、进包；**皮仍留在游戏**，别把卡片 / 颜色 / 字体 / 按钮搬进来。它引 uGUI，**不在下面那道 Roslyn 秒级门里**：改它要在消费方工程里跑 `TermsCopyTests`（消费方 `manifest.json` 临时用 `file:` 指到本地检出、加 `testables`，验完还原，不必提交消费方）。
 - 包不认识任何游戏的包名 / 路径以外的事：`FirebaseAndroidConfig` 只按传入的 application id 生成，跳不跳是宿主的分支。
 - 测试在 `Tests/Editor`，由消费方的 `manifest.json` `testables` 带起来跑；本仓没有独立的 Unity 工程。
   **但不必为了跑一遍就去开消费方工程**：全平台程序集（`Tracking` / `Tracking.Consent` / `Tracking.Ads` /
@@ -32,4 +33,4 @@
   把被测的那行判定摘掉、重跑，必须恰好红对应那条用例——不然绿的可能只是「用例没碰到它」。
 - 来路与设计取舍：`Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md`（arrows 仓 `docs/prd/PRD_20260906_1854_…`）。
 
-> 文档维护：Claude Opus 5（2026-09-20 补「不开消费方工程也能跑全平台程序集的测试」）；Claude Opus 5（2026-09-09 改名 `level-tracking` → `tracking`，切四个程序集）；Claude Fable 5.1（2026-09-06 建仓）
+> 文档维护：Claude Opus 5.5（2026-09-24 首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20 补「不开消费方工程也能跑全平台程序集的测试」）；Claude Opus 5（2026-09-09 改名 `level-tracking` → `tracking`，切四个程序集）；Claude Fable 5.1（2026-09-06 建仓）
