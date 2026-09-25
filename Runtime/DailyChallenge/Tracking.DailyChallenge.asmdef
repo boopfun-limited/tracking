@@ -1,0 +1,8 @@
+{
+    "name": "Tracking.DailyChallenge",
+    "rootNamespace": "Tracking.DailyChallenge",
+    "references": [
+        "Tracking"
+    ],
+    "noEngineReferences": true
+}

@@ -19,7 +19,8 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boop
 | `Tracking.Consent.UI` | `Runtime/Consent/UI` | 全部（可选，引 uGUI） | 首启条款弹窗上的**字与下划线链接**（D-20260924-01）：`TermsCopy`（标题 / 正文 / 同意键 / 两个文件名，14 种语言，真源 `Resources/TrackingTermsCopy.json`）、`TextLinks`（uGUI 正文里的词画下划线、各自可点）。**皮留在游戏** |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
-| `LevelTracking.Tests.EditMode` | `Tests/Editor` | Editor | `LevelTrackerEmitsExactlyItsSchema`（表 == 行为）、`PlayClockTests`（三条不变量）、名字合规；同意 UI：`TermsCopyTests`（14 种语言齐全、点哪个词开哪份——引 uGUI，只能在消费方工程里跑） |
+| `Tracking.DailyChallenge` | `Runtime/DailyChallenge` | 全部 | 每日挑战的埋点（D-20260925-01）：`DailyChallengeTracker`（`dc_open` / `dc_reward_unlocked` / `dc_reminder_open`，以及盖在那一局关卡事件上的 `LevelContext`）、`DailyChallengeEvents`（库发出的名字）。入口名、奖励档名、通知怎么读留在游戏 |
+| `LevelTracking.Tests.EditMode` | `Tests/Editor` | Editor | `LevelTrackerEmitsExactlyItsSchema`（表 == 行为）、`PlayClockTests`（三条不变量）、名字合规、`DailyChallengeTrackerTests`（每个事件恰好带自己那几个参数、日期按整天算）；同意 UI：`TermsCopyTests`（14 种语言齐全、点哪个词开哪份——引 uGUI，只能在消费方工程里跑） |
 
 🔴 **依赖是单向的**：`LevelTracking` → `Tracking`，`Tracking.Firebase.Android` → `Tracking`，`Tracking.Identity.Android` → `Tracking`。
 `Tracking.Consent.UI` 一个本包程序集都不引，只引 uGUI（`UnityEngine.UI`；`package.json` 因此声明依赖 `com.unity.ugui`）。
@@ -299,4 +300,29 @@ flow.RewardResult(true, "granted"); // 游戏实际发奖后
 
 Firebase 保留名依据：https://firebase.google.com/docs/reference/kotlin/com/google/firebase/analytics/FirebaseAnalytics.Event 。公共库使用 `ad_clicked`；收入 `ad_impression` 是 Firebase 支持的标准事件。
 
-> 文档维护：Claude Opus 5.5（2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
+## DailyChallenge：每日挑战埋点
+
+引用 `Tracking.DailyChallenge` 程序集与命名空间，构造 `DailyChallengeTracker(IAnalyticsBackend)`。不依赖关卡模块：
+每日挑战那一局**不另起事件**，关卡事件照走 `LevelTracker`，游戏把 `LevelContext` 拼进它的公共参数。
+
+```csharp
+var dc = new DailyChallengeTracker(analytics);
+// LevelTracker 的 gameCommons：在打每日挑战时追加这两个参数
+DailyChallengeTracker.LevelContext(challengeDate, today);   // dc_date、dc_days_ago
+dc.Open("tab");                              // 玩家从外面进入每日挑战
+dc.RewardUnlocked(month, "gold");            // 赢局让当月做满天数跨过一档
+dc.ReminderOpened(1);                        // 点第 1 条提醒进来
+```
+
+| 事件 / 参数 | 发射入口 | 口径 |
+|---|---|---|
+| `dc_date`、`dc_days_ago`（关卡事件上） | `LevelContext` | 哪一天的题（long `yyyymmdd`）；离发事件那一刻的本地「今天」几天，0 = 今天的题，>0 = 补做 |
+| `dc_open` | `Open(source)` | **从外面进入**：入口名 `dc_source` 归游戏；每日挑战内部来回（对局回日历等）不发；入口直接开今天那局的，也在点入口时发 |
+| `dc_reward_unlocked` | `RewardUnlocked(month, tier)` | 跨档**那一刻**报，不在领奖弹窗报；`dc_month` 是奖励所属月（long `yyyymm`），档名 `dc_tier` 归游戏 |
+| `dc_reminder_open` | `ReminderOpened(index)` | 点提醒打开 / 切回，`dc_reminder_index` 从 1 起；一次点击只报一次，去重由游戏的通知适配层负责 |
+
+- 为什么是这几条：回答「今天的题做了多少 / 补做占多少」「哪个入口带人」「每月多少人拿到哪一档」「提醒带回多少人」。
+  页内点击（点日期、切月、看奖杯、玩法说明）不进包：各游戏页面不同，要看某页时游戏自己加平事件。
+- `dc_*` 不与 GA4 自动采集 / 保留事件撞名（依据同上一节的 Firebase 事件表）。不注册 GA4 自定义维度也照样在 BigQuery 导出的原始参数里。
+
+> 文档维护：Claude Opus 5.5（2026-09-25，每日挑战埋点模块；2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）

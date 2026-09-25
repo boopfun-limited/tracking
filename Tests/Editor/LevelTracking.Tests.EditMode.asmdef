@@ -6,6 +6,7 @@
         "LevelTracking",
         "Tracking.Consent",
         "Tracking.Ads",
+        "Tracking.DailyChallenge",
         "Tracking.Consent.UI",
         "UnityEngine.UI"
     ],

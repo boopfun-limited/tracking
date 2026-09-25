@@ -11,6 +11,28 @@
 
 ---
 
+## D-20260925-01 每日挑战埋点进包（`Tracking.DailyChallenge`）：三个事件 + 盖在关卡事件上的两个参数
+
+日期：2026-09-25　状态：active　拍板人：owner（「每日挑战的埋点可以考虑进 tracking，之后很多游戏都会加每日挑战」「按这个设计做吧」）　模型：Claude Opus 5.5
+
+**决策**：新增域模块 `Tracking.DailyChallenge`（`Runtime/DailyChallenge`，只引 `Tracking`，纯 .NET）。库拥有这些名字：
+`dc_open`（`dc_source`）、`dc_reward_unlocked`（`dc_month`、`dc_tier`）、`dc_reminder_open`（`dc_reminder_index`），以及每日挑战那一局
+盖在关卡事件上的 `dc_date`、`dc_days_ago`（`LevelContext`，游戏拼进 `LevelTracker` 的公共参数）。每日挑战的局**不另起关卡事件**。
+入口名、奖励档名、何时算跨档、通知怎么排怎么读留在游戏。口径逐条写在 `DailyChallengeEvents` 的注释与 `README.md`「DailyChallenge」一节。
+
+**理由**：owner 要把每日挑战做成各游戏通用的功能，埋点名字统一了，跨游戏的查询和看板才能共用。两家竞品（Oakever 5.77.0、Easybrain 7.9.0）
+都在对局事件上标每日挑战的日期、都记日历入口的来源，Easybrain 还记推送打开——这几块就是本模块的范围。
+「今天的题 / 补做」用离今天的天数而不是只给日期：BigQuery 里没有玩家本地的「今天」，事后按时区推算容易错。
+领奖**档**用跨档那一刻报，不用领奖弹窗：弹窗在回日历的动画之后才出，玩家可能等不到。
+
+**代价**：
+- 名字发版后改不了（同 `LevelTrackingEvents`），改名要先问 owner。
+- 页内点击（点日期、切月、看奖杯、玩法说明）不进包；各游戏页面不同，要看某页时游戏自己加平事件。
+- 没有 `LevelTrackingSchema` 那样的机器表：现在没有游戏的文档工具读它，每个方法发什么由 `DailyChallengeTrackerTests` 直接钉；
+  哪个游戏要按表生成埋点文档时再补。
+
+---
+
 ## D-20260924-01 首启条款弹窗的**字与下划线链接**进包（`Tracking.Consent.UI`），皮仍留在游戏
 
 日期：2026-09-24　状态：active　拍板人：owner（「这个有没有办法在 tracking sdk 中加入这个逻辑。也就是首启弹窗的文字内容，包括按钮内容和下划线标注等」

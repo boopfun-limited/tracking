@@ -17,7 +17,7 @@
 - 包不认识任何游戏的包名 / 路径以外的事：`FirebaseAndroidConfig` 只按传入的 application id 生成，跳不跳是宿主的分支。
 - 测试在 `Tests/Editor`，由消费方的 `manifest.json` `testables` 带起来跑；本仓没有独立的 Unity 工程。
   **但不必为了跑一遍就去开消费方工程**：全平台程序集（`Tracking` / `Tracking.Consent` / `Tracking.Ads` /
-  `LevelTracking`）是纯 .NET，用 Unity 自带的 Roslyn 直接编译、拿 Unity 自带的 NUnit 反射跑 `[Test]` 即可，
+  `Tracking.DailyChallenge` / `LevelTracking`）是纯 .NET，用 Unity 自带的 Roslyn 直接编译、拿 Unity 自带的 NUnit 反射跑 `[Test]` 即可，
   秒级。直推 `main` 成了默认（D-20260920-01）之后这就是推之前唯一那道门，别省。
   ```bash
   U=/Applications/Unity/Hub/Editor/*/Unity.app/Contents        # 装了哪个版本都行
@@ -33,4 +33,4 @@
   把被测的那行判定摘掉、重跑，必须恰好红对应那条用例——不然绿的可能只是「用例没碰到它」。
 - 来路与设计取舍：`Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md`（arrows 仓 `docs/prd/PRD_20260906_1854_…`）。
 
-> 文档维护：Claude Opus 5.5（2026-09-24 首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20 补「不开消费方工程也能跑全平台程序集的测试」）；Claude Opus 5（2026-09-09 改名 `level-tracking` → `tracking`，切四个程序集）；Claude Fable 5.1（2026-09-06 建仓）
+> 文档维护：Claude Opus 5.5（2026-09-25 Roslyn 门的程序集清单加 `Tracking.DailyChallenge`；2026-09-24 首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20 补「不开消费方工程也能跑全平台程序集的测试」）；Claude Opus 5（2026-09-09 改名 `level-tracking` → `tracking`，切四个程序集）；Claude Fable 5.1（2026-09-06 建仓）
