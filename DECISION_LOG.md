@@ -11,6 +11,23 @@
 
 ---
 
+## D-20260925-02 每日挑战加分享 / 存图三个事件（`dc_share_open` / `dc_share` / `dc_save`）
+
+日期：2026-09-25　状态：active　拍板人：owner（看过事件名与参数的方案后「按这个做吧，dc_share_open 也加上」）　模型：Claude Opus 5.5
+
+**决策**：`Tracking.DailyChallenge` 加三个事件：`dc_share_open`（`dc_month`、`dc_tier`）、`dc_share`（再加 `dc_share_method`）、
+`dc_save`（再加 `dc_save_result`）。渠道名、结果名归游戏（sudoku 的取值写在 `DailyChallengeEvents` 的注释里）。
+
+**理由**：分享 / 存图是奖杯的对外动作（Oakever 的奖杯弹窗原样带着），会随奖杯系统一起搬到别的游戏，名字进包才能跨游戏查。
+分享回答「多少人晒奖杯、走哪个渠道」，`dc_share_open` 让它能算成转化率；存图主要看失败率——Android 9 及以下要存储权限的那条路
+在开发机上跑不到，线上只能靠它。D-20260925-01「页内点击不进包」不变：这两件是把东西带出游戏的动作，不是页内浏览。
+
+**代价**：
+- 名字发版后改不了（同 D-20260925-01）。
+- `dc_share` 报的是「交出去了」：交给系统分享面板或别的应用之后发没发，游戏拿不到；要知道得接各家 SDK 的回调（sudoku 已定不接 Facebook SDK）。
+
+---
+
 ## D-20260925-01 每日挑战埋点进包（`Tracking.DailyChallenge`）：三个事件 + 盖在关卡事件上的两个参数
 
 日期：2026-09-25　状态：active　拍板人：owner（「每日挑战的埋点可以考虑进 tracking，之后很多游戏都会加每日挑战」「按这个设计做吧」）　模型：Claude Opus 5.5

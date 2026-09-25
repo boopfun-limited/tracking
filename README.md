@@ -312,6 +312,9 @@ DailyChallengeTracker.LevelContext(challengeDate, today);   // dc_date、dc_days
 dc.Open("tab");                              // 玩家从外面进入每日挑战
 dc.RewardUnlocked(month, "gold");            // 赢局让当月做满天数跨过一档
 dc.ReminderOpened(1);                        // 点第 1 条提醒进来
+dc.ShareOpened(month, "gold");               // 打开这个月奖杯的分享页
+dc.Shared(month, "gold", "more");            // 在分享页选了渠道、图已交出去
+dc.Saved(month, "gold", "ok");               // 奖杯图存相册的结果
 ```
 
 | 事件 / 参数 | 发射入口 | 口径 |
@@ -320,9 +323,13 @@ dc.ReminderOpened(1);                        // 点第 1 条提醒进来
 | `dc_open` | `Open(source)` | **从外面进入**：入口名 `dc_source` 归游戏；每日挑战内部来回（对局回日历等）不发；入口直接开今天那局的，也在点入口时发 |
 | `dc_reward_unlocked` | `RewardUnlocked(month, tier)` | 跨档**那一刻**报，不在领奖弹窗报；`dc_month` 是奖励所属月（long `yyyymm`），档名 `dc_tier` 归游戏 |
 | `dc_reminder_open` | `ReminderOpened(index)` | 点提醒打开 / 切回，`dc_reminder_index` 从 1 起；一次点击只报一次，去重由游戏的通知适配层负责 |
+| `dc_share_open` | `ShareOpened(month, tier)` | 打开某个月奖杯的分享页；与 `dc_share` 一起算「打开后真的选了渠道」的比例 |
+| `dc_share` | `Shared(month, tier, method)` | 在分享页选了渠道、**图已交出去**（交给系统分享面板或别的应用之后发没发，游戏拿不到）；渠道名 `dc_share_method` 归游戏 |
+| `dc_save` | `Saved(month, tier, result)` | 奖杯图存相册的**结果**，失败也报（存相册的路径随系统版本分叉，线上失败率只能从这里看）；结果名 `dc_save_result` 归游戏 |
 
-- 为什么是这几条：回答「今天的题做了多少 / 补做占多少」「哪个入口带人」「每月多少人拿到哪一档」「提醒带回多少人」。
+- 为什么是这几条：回答「今天的题做了多少 / 补做占多少」「哪个入口带人」「每月多少人拿到哪一档」「提醒带回多少人」，
+  以及「多少人晒奖杯、走哪个渠道、存图坏没坏」（分享 / 存图是奖杯的对外动作，随奖杯系统一起搬，D-20260925-02）。
   页内点击（点日期、切月、看奖杯、玩法说明）不进包：各游戏页面不同，要看某页时游戏自己加平事件。
 - `dc_*` 不与 GA4 自动采集 / 保留事件撞名（依据同上一节的 Firebase 事件表）。不注册 GA4 自定义维度也照样在 BigQuery 导出的原始参数里。
 
-> 文档维护：Claude Opus 5.5（2026-09-25，每日挑战埋点模块；2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
+> 文档维护：Claude Opus 5.5（2026-09-25，每日挑战埋点模块，同日加分享 / 存图三个事件；2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）

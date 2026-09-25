@@ -38,9 +38,7 @@ namespace Tracking.DailyChallenge
         /// <param name="month">奖励属于的那个月，只取年月。</param>
         public void RewardUnlocked(DateTime month, string tier)
         {
-            backend.LogEvent(DailyChallengeEvents.RewardUnlocked,
-                AnalyticsParameter.Of(DailyChallengeEvents.Params.Month, month.Year * 100L + month.Month),
-                AnalyticsParameter.Of(DailyChallengeEvents.Params.Tier, tier));
+            backend.LogEvent(DailyChallengeEvents.RewardUnlocked, Month(month), AnalyticsParameter.Of(DailyChallengeEvents.Params.Tier, tier));
         }
 
         /// <param name="index">第几条提醒，1 起。</param>
@@ -49,5 +47,28 @@ namespace Tracking.DailyChallenge
             backend.LogEvent(DailyChallengeEvents.ReminderOpen,
                 AnalyticsParameter.Of(DailyChallengeEvents.Params.ReminderIndex, index));
         }
+
+        /// <param name="month">奖杯属于的那个月，只取年月。</param>
+        public void ShareOpened(DateTime month, string tier)
+        {
+            backend.LogEvent(DailyChallengeEvents.ShareOpen, Month(month), AnalyticsParameter.Of(DailyChallengeEvents.Params.Tier, tier));
+        }
+
+        /// <param name="month">奖杯属于的那个月，只取年月。</param>
+        public void Shared(DateTime month, string tier, string method)
+        {
+            backend.LogEvent(DailyChallengeEvents.Share, Month(month), AnalyticsParameter.Of(DailyChallengeEvents.Params.Tier, tier),
+                AnalyticsParameter.Of(DailyChallengeEvents.Params.ShareMethod, method));
+        }
+
+        /// <param name="month">奖杯属于的那个月，只取年月。</param>
+        public void Saved(DateTime month, string tier, string result)
+        {
+            backend.LogEvent(DailyChallengeEvents.Save, Month(month), AnalyticsParameter.Of(DailyChallengeEvents.Params.Tier, tier),
+                AnalyticsParameter.Of(DailyChallengeEvents.Params.SaveResult, result));
+        }
+
+        private static AnalyticsParameter Month(DateTime month) =>
+            AnalyticsParameter.Of(DailyChallengeEvents.Params.Month, month.Year * 100L + month.Month);
     }
 }

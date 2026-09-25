@@ -35,11 +35,20 @@ namespace LevelTracking.Tests.EditMode
             tracker.Open("tab");
             tracker.RewardUnlocked(new DateTime(2026, 9, 17), "gold");
             tracker.ReminderOpened(2);
+            tracker.ShareOpened(new DateTime(2026, 8, 31, 23, 0, 0), "silver");
+            tracker.Shared(new DateTime(2026, 8, 1), "silver", "facebook_fallback");
+            tracker.Saved(new DateTime(2025, 12, 5), "bronze", "denied");
 
-            Assert.That(capture.Events.Select(e => e.Name), Is.EqualTo(new[] { "dc_open", "dc_reward_unlocked", "dc_reminder_open" }));
+            Assert.That(capture.Events.Select(e => e.Name), Is.EqualTo(new[]
+                { "dc_open", "dc_reward_unlocked", "dc_reminder_open", "dc_share_open", "dc_share", "dc_save" }));
             Assert.That(Values(capture.Events[0].Parameters), Is.EquivalentTo(new Dictionary<string, object> { ["dc_source"] = "tab" }));
             Assert.That(Values(capture.Events[1].Parameters), Is.EquivalentTo(new Dictionary<string, object> { ["dc_month"] = 202609L, ["dc_tier"] = "gold" }));
             Assert.That(Values(capture.Events[2].Parameters), Is.EquivalentTo(new Dictionary<string, object> { ["dc_reminder_index"] = 2L }));
+            Assert.That(Values(capture.Events[3].Parameters), Is.EquivalentTo(new Dictionary<string, object> { ["dc_month"] = 202608L, ["dc_tier"] = "silver" }));
+            Assert.That(Values(capture.Events[4].Parameters), Is.EquivalentTo(new Dictionary<string, object>
+                { ["dc_month"] = 202608L, ["dc_tier"] = "silver", ["dc_share_method"] = "facebook_fallback" }));
+            Assert.That(Values(capture.Events[5].Parameters), Is.EquivalentTo(new Dictionary<string, object>
+                { ["dc_month"] = 202512L, ["dc_tier"] = "bronze", ["dc_save_result"] = "denied" }));
         }
 
         [Test]
@@ -78,10 +87,14 @@ namespace LevelTracking.Tests.EditMode
             tracker.Open("tab");
             tracker.RewardUnlocked(new DateTime(2026, 9, 1), "bronze");
             tracker.ReminderOpened(1);
+            tracker.ShareOpened(new DateTime(2026, 9, 1), "gold");
+            tracker.Shared(new DateTime(2026, 9, 1), "gold", "more");
+            tracker.Saved(new DateTime(2026, 9, 1), "gold", "ok");
             Assert.That(capture.Events.Select(e => e.Name), Is.EquivalentTo(events));
             Assert.That(capture.Events.SelectMany(e => e.Parameters)
                     .Concat(DailyChallengeTracker.LevelContext(DateTime.Today, DateTime.Today))
-                    .Select(p => p.Name),
+                    .Select(p => p.Name)
+                    .Distinct(),
                 Is.EquivalentTo(parameters));
         }
     }
