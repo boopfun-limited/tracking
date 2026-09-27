@@ -18,6 +18,7 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boop
 | `Tracking.Consent.Android` | `Runtime/Consent/Android` | Android | `UmpConsentPlatform`——Google UMP 的 JNI 接线，接包内 Java 桥 `TrackingConsent.androidlib`（**唯一碰 `com.google.android.ump.*` 的地方**） |
 | `Tracking.Consent.UI` | `Runtime/Consent/UI` | 全部（可选，引 uGUI） | 首启条款弹窗上的**字与下划线链接**（D-20260924-01）：`TermsCopy`（标题 / 正文 / 同意键 / 两个文件名，14 种语言，真源 `Resources/TrackingTermsCopy.json`）、`TextLinks`（uGUI 正文里的词画下划线、各自可点）。**皮留在游戏** |
 | `Tracking.Iap` | `Runtime/Iap` | 全部 | `IapTracker` / `IapAttempt` / `IapEvents`：非消耗型内购漏斗、待付款后续结果与权益变化去重；不调用支付或收入 API，仅依赖 `Tracking` |
+| `Tracking.AppsFlyer` | `Runtime/AppsFlyer` | 全部 | `AppsFlyerTracker`：AppsFlyer 归因的机制（起 SDK 的顺序、安装标识作 CUID、AFID 用户属性、广告收入、新付款内购 `af_purchase` 与按交易号去重）+ `IAppsFlyerSdk`（缝：游戏一比一转接自己的 AppsFlyer 插件，**包不引插件**）。见文末「AppsFlyer」一节 |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
 | `Tracking.DailyChallenge` | `Runtime/DailyChallenge` | 全部 | 每日挑战的埋点（D-20260925-01）：`DailyChallengeTracker`（`dc_open` / `dc_reward_unlocked` / `dc_reminder_open`，以及盖在那一局关卡事件上的 `LevelContext`）、`DailyChallengeEvents`（库发出的名字）。入口名、奖励档名、通知怎么读留在游戏 |
@@ -348,3 +349,37 @@ dc.Saved(month, "gold", "ok");               // 奖杯图存相册的结果
 - 随机关联 ID 仅在当前进程内有效；重启后恢复权益只能按自动同步记录，不能声称还知道此前的购买尝试 ID。
 
 > 文档维护：GPT-6（2026-09-27，新增独立内购分析模块与接入说明）
+
+## AppsFlyer：归因与收入回传
+
+`Tracking.AppsFlyer`（全平台，只引 `Tracking`）管机制，D-20260927-01：
+
+- **起 SDK**：`Start(devKey, analytics)`。CUID = `InstallId`（= GA4 `user_id`），🔴 必须在 `startSDK` 之前设——AF 只给设了之后的记录带它，装机那条最要紧。传了 `analytics` 才把 AFID 挂成用户属性 `appsflyer_id`。失败静默降级，没起来的会话一条都不发。
+- **广告收入**：`LogAdRevenue(network, revenue, adUnit, adFormat, country)`，MAX 回报恒为美元；负数 / NaN / 无穷不报、零照报；附加参数只带单元 / 格式 / 国家，空值不放。
+- **内购收入**：`LogPurchase(productId, transactionId, price, currency)` 发标准事件 `af_purchase`（`af_content_id` / `af_revenue` / `af_currency`，本币由 AppsFlyer 折美元）。只接 `unity-purchasing` 的 `PurchaseService.Paid`——恢复购买、待付款不触发。确认没落地的订单会被商店重投，所以按商品在 PlayerPrefs（`gthbj.tracking.af_purchase.<商品>`）记住报过的交易号，一笔只报一次；交易号只用来去重，不发出去。报的是标价：未扣商店分成与税，许可测试 / 优惠码的 0 元单也按标价报。
+
+🔴 **包不引 AppsFlyer 插件**：插件以源码装在各游戏的 `Assets/AppsFlyer`，没装它的消费方（arrows-3d / boopdoku / ball-sort）一引就编不过 Android 包。
+游戏写一个一比一转接 `IAppsFlyerSdk` 的类，只转发——dev key、聚合平台、调试开关归游戏——放在只有 Android 包才编的地方：
+
+```csharp
+sealed class PluginSdk : IAppsFlyerSdk
+{
+    public void Init(string devKey) => AppsFlyer.initSDK(devKey, null);
+    public void SetCustomerUserId(string id) => AppsFlyer.setCustomerUserId(id);
+    public void Start() => AppsFlyer.startSDK();
+    public string GetAppsFlyerId() => AppsFlyer.getAppsFlyerId();
+    public void LogAdRevenue(string network, double revenue, string currency, Dictionary<string, string> extra) =>
+        AppsFlyer.logAdRevenue(new AFAdRevenueData(network, MediationNetwork.ApplovinMax, currency, revenue), extra);
+    public void SendEvent(string eventName, Dictionary<string, string> values) => AppsFlyer.sendEvent(eventName, values);
+}
+
+static readonly AppsFlyerTracker Tracker = new AppsFlyerTracker(new PluginSdk());
+Tracker.Start(DevKey, analytics);                                              // 装配根
+Tracker.LogAdRevenue(info.NetworkName, info.Revenue, adUnitId, info.AdFormat, country);   // MAX 收入回调
+purchases.Paid += (p, tx) => Tracker.LogPurchase(p.Id, tx, p.Price, p.CurrencyCode);    // 新付款
+```
+
+发 `af_purchase` 之前，游戏要核对隐私政策与 Data safety：购买记录多了 AppsFlyer 这个接收方。已迁入：arrows、sudoku；water_sort 仍用自己的一份，升包时迁。
+
+> 文档维护：Claude Opus 5.5（2026-09-27，新增 AppsFlyer 模块）
+

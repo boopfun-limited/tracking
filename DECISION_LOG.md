@@ -11,6 +11,26 @@
 
 ---
 
+## D-20260927-01 AppsFlyer 归因与收入回传进包（`Tracking.AppsFlyer`）：包不引插件，游戏给一比一转接层
+
+日期：2026-09-27　状态：active　拍板人：owner（看过「把整个 AppsFlyer 层抽进 tracking、arrows 与 Sudoku 一起迁」的建议后：「现在就做。sudoku也接上 af 内购收入」）　模型：Claude Opus 5.5
+
+**决策**：AppsFlyer 的机制进包——起 SDK 的顺序（CUID 在 start 之前）、AFID 用户属性、广告收入的过滤与附加参数、
+新付款内购的 `af_purchase`（商品、标价、本币）与按交易号去重。包**不引 AppsFlyer 插件**，只定义缝 `IAppsFlyerSdk`，
+游戏写一比一转接（dev key、聚合平台、调试开关归游戏）。模块全平台编译，判定都在 EditMode 里测得到。
+
+**理由**：arrows / sudoku / water_sort 各有一份几乎相同的 `AppsFlyerBackend`（同一把 dev key、同一套启动与广告收入逻辑），
+再加内购收入就是三处同步改。照 `Tracking.Firebase.Android` 的形状直接引插件行不通：插件是游戏 `Assets` 里的源码，
+arrows-3d / boopdoku / ball-sort 没装，包一引它们的 Android 包就编不过；靠每个消费方加宏开关的话，漏设只在出包那一步红。
+转接层几十行、不含判断，换来零宏、不依赖插件的程序集名，机制也全能在 EditMode 里测。
+
+**代价**：
+- 每个游戏仍各有一份转接层；插件升级改了 API 时各自改（本来就各自导入插件）。
+- 去重键在 PlayerPrefs（`gthbj.tracking.af_purchase.<商品>`）：清掉 PlayerPrefs 后同一笔重投会再报一次——重投只发生在确认没落地时。
+- `af_purchase` 与参数名是 AppsFlyer 的标准名，不归本包命名；改成别的名字 AF 后台就不认收入。
+
+---
+
 ## D-20260925-02 每日挑战加分享 / 存图三个事件（`dc_share_open` / `dc_share` / `dc_save`）
 
 日期：2026-09-25　状态：active　拍板人：owner（看过事件名与参数的方案后「按这个做吧，dc_share_open 也加上」）　模型：Claude Opus 5.5

@@ -9,7 +9,8 @@
         "Tracking.DailyChallenge",
         "Tracking.Consent.UI",
         "UnityEngine.UI",
-        "Tracking.Iap"
+        "Tracking.Iap",
+        "Tracking.AppsFlyer"
     ],
     "includePlatforms": [
         "Editor"

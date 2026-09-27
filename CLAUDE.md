@@ -28,7 +28,7 @@
     <要编的 .cs> <一个反射调 [Test] 的 Main>
   ```
   🔴 **`-r:` 必须是 `$R/*.dll` 整份**，少了 `mscorlib.dll` 那个门面就报「类型 Attribute 在未引用的程序集中定义」——
-  Unity 那份 NUnit 是 net40 的。要引 `UnityEngine` 的文件（`InstallId`、`PlayerPrefsTermsStore`）**编得过、跑不了**
+  Unity 那份 NUnit 是 net40 的。要引 `UnityEngine` 的文件（`InstallId`、`PlayerPrefsTermsStore`、`AppsFlyerTracker`）**编得过、跑不了**
   （没有 Player Loop），只能拿它验编译；`*.Android` 连编都编不了，见上一条。跑绿之后**再做一次变异检查**：
   把被测的那行判定摘掉、重跑，必须恰好红对应那条用例——不然绿的可能只是「用例没碰到它」。
 - 来路与设计取舍：`Docs~/DESIGN_ORIGIN_arrows_PRD_20260906_1854.md`（arrows 仓 `docs/prd/PRD_20260906_1854_…`）。

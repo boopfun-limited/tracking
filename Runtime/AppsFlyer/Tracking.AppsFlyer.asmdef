@@ -1,0 +1,7 @@
+{
+    "name": "Tracking.AppsFlyer",
+    "rootNamespace": "Tracking.AppsFlyer",
+    "references": [
+        "Tracking"
+    ]
+}
