@@ -1,0 +1,8 @@
+{
+    "name": "Tracking.Iap",
+    "rootNamespace": "Tracking.Iap",
+    "references": [
+        "Tracking"
+    ],
+    "noEngineReferences": true
+}

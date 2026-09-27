@@ -8,7 +8,8 @@
         "Tracking.Ads",
         "Tracking.DailyChallenge",
         "Tracking.Consent.UI",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Tracking.Iap"
     ],
     "includePlatforms": [
         "Editor"

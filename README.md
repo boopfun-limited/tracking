@@ -17,6 +17,7 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boop
 | `Tracking.Consent` | `Runtime/Consent` | 全部 | `ConsentFlow`（首启同意状态机：两前置条件取较晚者、REQUIRED 才弹表单、收尾无论成败都回调、请求失败退避重试）、`IConsentPlatform`（缝）、`ConsentEvents`、`UsPrivacy`、`NullConsentPlatform`、`TermsGate`（首启条款弹窗的**判定**：弹不弹、两条事件、同意落盘、放行流程——**皮留在游戏**，弹窗上的字与链接见 `Tracking.Consent.UI`）+ `ITermsStore`（缝）/ `PlayerPrefsTermsStore`。规格见 `Docs~/PRD_20260911_1509_首启同意流程SDK照oakever.md` |
 | `Tracking.Consent.Android` | `Runtime/Consent/Android` | Android | `UmpConsentPlatform`——Google UMP 的 JNI 接线，接包内 Java 桥 `TrackingConsent.androidlib`（**唯一碰 `com.google.android.ump.*` 的地方**） |
 | `Tracking.Consent.UI` | `Runtime/Consent/UI` | 全部（可选，引 uGUI） | 首启条款弹窗上的**字与下划线链接**（D-20260924-01）：`TermsCopy`（标题 / 正文 / 同意键 / 两个文件名，14 种语言，真源 `Resources/TrackingTermsCopy.json`）、`TextLinks`（uGUI 正文里的词画下划线、各自可点）。**皮留在游戏** |
+| `Tracking.Iap` | `Runtime/Iap` | 全部 | `IapTracker` / `IapAttempt` / `IapEvents`：非消耗型内购漏斗、待付款后续结果与权益变化去重；不调用支付或收入 API，仅依赖 `Tracking` |
 | `Tracking.Editor` | `Editor` | Editor | `FirebaseAndroidConfig.Regenerate(applicationId)`：`google-services.json` → androidlib |
 | `LevelTracking` | `Runtime/Level` | 全部 | **`PlayClock`**（停表语义：理由位集合、停表期间读数冻结、后台段在真实帧结算）、**`LevelTracker`** 门面、`LevelTrackingEvents`（库发出的名字）、`LevelTrackingSchema`（方法 → 事件 → 标准参数的机器真源） |
 | `Tracking.DailyChallenge` | `Runtime/DailyChallenge` | 全部 | 每日挑战的埋点（D-20260925-01）：`DailyChallengeTracker`（`dc_open` / `dc_reward_unlocked` / `dc_reminder_open`，以及盖在那一局关卡事件上的 `LevelContext`）、`DailyChallengeEvents`（库发出的名字）。入口名、奖励档名、通知怎么读留在游戏 |
@@ -333,3 +334,17 @@ dc.Saved(month, "gold", "ok");               // 奖杯图存相册的结果
 - `dc_*` 不与 GA4 自动采集 / 保留事件撞名（依据同上一节的 Firebase 事件表）。不注册 GA4 自定义维度也照样在 BigQuery 导出的原始参数里。
 
 > 文档维护：Claude Opus 5.5（2026-09-25，每日挑战埋点模块，同日加分享 / 存图三个事件；2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
+
+## IAP：购买漏斗分析
+
+每个非消耗型商品由宿主创建一个跨场景的 `IapTracker`，传入既有 `IAnalyticsBackend`、商品 ID 和已验证权益的初始快照 `IapState`。初始缓存只作基线，不报一次新购买。宿主在购买服务状态变化时调用 `Observe`，并提供可选的自动同步上下文；参数只包含游戏自身上下文，不重复传 `IapEvents.Params` 的标准字段。
+
+- `EntryClicked(source, context)` 创建面板关联 ID；`PanelShown` / `PanelClosed` 按可见切换去重。
+- `BeginPurchase` / `BeginRestore` 返回 `IapAttempt`。把实际商店回调映射成 `IapResult` 后交给 `Complete`；两类结果分开报告。
+- 一次购买可先 Pending 再有一个终态；重复回调不重复报告。面板关闭或另一面板打开不丢失原请求快照。后续 `Observe` 看到已验证权益变为持有时，待付款请求完成；成功查询不再持有时报告 NotOwned，不伪造拒付或退款原因。
+- `IsOwned` 来自购买服务，tracking 不验证收据、不确认交易、不计算退款，不改变 UI 或广告。网络失败与未持有是不同状态，状态字符串按实际服务映射为 `ready/loading/purchasing/pending/unavailable`。
+- 宿主销毁时 `Dispose`；购买 SDK 不需要依赖本模块。Arrows 的适配示例见游戏的 `PurchaseAnalytics`，交易服务仍在独立 `unity-purchasing` 包。
+- 只发 `iap_flow`，字段与阶段真源为 `IapEvents`。不发 `purchase` / `in_app_purchase`，不带收入 value/currency、收据、令牌、商店账号或交易 ID。Google Play 自动收入统计另核对关联与实际数据到达。
+- 随机关联 ID 仅在当前进程内有效；重启后恢复权益只能按自动同步记录，不能声称还知道此前的购买尝试 ID。
+
+> 文档维护：GPT-6（2026-09-27，新增独立内购分析模块与接入说明）
