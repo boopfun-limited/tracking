@@ -22,9 +22,9 @@ namespace Tracking.Ads
             return flow;
         }
 
-        public AdLoad Request(string format, string unit)
+        public AdLoad Request(string format, string unit, params AnalyticsParameter[] context)
         {
-            var load = new AdLoad(this, format, unit);
+            var load = new AdLoad(this, format, unit, context);
             load.EmitRequest();
             return load;
         }
@@ -89,16 +89,17 @@ namespace Tracking.Ads
         private readonly double started;
         private bool filled;
         public string RequestId { get; } = Guid.NewGuid().ToString("N");
-        internal AdLoad(AdTracker tracker, string format, string unit)
+        internal AdLoad(AdTracker tracker, string format, string unit, AnalyticsParameter[] extra)
         {
             this.tracker = tracker;
             started = tracker.Now;
-            context = new[] {
+            var data = new List<AnalyticsParameter>(extra ?? Array.Empty<AnalyticsParameter>()) {
                 AnalyticsParameter.Of(AdEvents.Params.RequestId, RequestId),
                 AnalyticsParameter.Of(AdEvents.Params.Format, format),
                 AnalyticsParameter.Of(AdEvents.Params.Unit, unit),
                 AnalyticsParameter.Of(AdEvents.Params.LoadOrigin, "explicit")
             };
+            context = data.ToArray();
         }
         internal void EmitRequest() => tracker.Emit(AdEvents.Request, context);
         public void Fill(bool success, params AnalyticsParameter[] details)
