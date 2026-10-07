@@ -22,11 +22,14 @@ final class ConsentResultQueue {
 
     // Called through JNI by UmpConsentPlatform.Pump on the Unity thread. Invoking
     // the proxy here avoids a UI-thread nativeProxyInvoke during GC or suspension.
-    void dispatch() {
+    int dispatch() {
+        int delivered = 0;
         Result result;
         while ((result = results.poll()) != null) {
             result.target.onResult(result.error);
+            delivered++;
         }
+        return delivered;
     }
 
     private static final class Result {

@@ -346,6 +346,9 @@ public final class ConsentBridge {
 
     /** Deliver queued results on the calling Unity thread; never called by UMP's UI listeners. */
     public static void dispatchPendingCallbacks() {
-        results.dispatch();
+        int delivered = results.dispatch();
+        if (delivered != 0) {
+            Log.d(TAG, "Dispatched " + delivered + " consent result(s) on " + Thread.currentThread().getName());
+        }
     }
 }
