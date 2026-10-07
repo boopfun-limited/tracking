@@ -177,7 +177,9 @@ R8 改名时一起改（同一份构建里的佐证：本桥的匿名内部类�
    哪天那个插件随「AdMob 换 MAX」被移除，**这一行要留下**，否则桥编译得过、运行期整条同意流程静默失效。
 
 3. **每帧调一次 `consentFlow.Tick()`**（与 `PlayClock.Tick` 同一处）。跨线程回调靠它交付：
-   UMP 的监听器落在 Android 主线程上，不是 Unity 主线程。不调的症状是**表单永远不弹**。
+   UMP 的监听器只向 Java 队列写结果；`UmpConsentPlatform.Pump()` 在 Unity 线程调用桥领取，
+   避免 Android UI 线程经 `AndroidJavaProxy` 等待 IL2CPP 的 GC / 暂停。业务回调仍在 Unity 线程交付。
+   不调的症状是**表单永远不弹**。
 
 **R8 keep 规则不用游戏管**——`.androidlib` 用 `consumerProguardFiles` 把规则随模块传给 app 的 R8
 （AppsFlyer / Firebase 保住名字靠的就是这个机制）。这是它与 `AppSetIdUserProperty` 那条的区别：
@@ -389,3 +391,5 @@ purchases.Paid += (p, tx) => Tracker.LogPurchase(p.Id, tx, p.Price, p.CurrencyCo
 `AdTracker.Request(format, unit, params AnalyticsParameter[] context)` 可附带加载触发原因、重试次数或连接类型。上下文在请求时复制并随配对的 `ad_fill` 发送；回调时的新状态通过 `AdLoad.Fill` 的 details 单独传入。request_id、格式、单元和 load_origin 标准字段以库生成值为准。两参数调用保持兼容；宿主决定字段词汇，不采集原始SDK错误消息。
 
 > 文档维护：GPT-6（2026-10-07，加载诊断上下文）。
+
+> 文档维护：GPT-6（2026-10-08，同意结果改由 Unity 线程领取 Java 队列）。

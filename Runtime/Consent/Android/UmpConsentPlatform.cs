@@ -38,8 +38,8 @@ namespace Tracking.Consent.Android
     /// 🔴 **两次线程转换，一次都不能省**：
     /// <list type="number">
     /// <item>Unity 线程 → UI 线程：Java 桥里的 <c>runOnUiThread</c>；</item>
-    /// <item>UI 线程 → Unity 线程：桥的回调落在 Android 主线程上，本类**排队**，
-    ///       由 <see cref="Pump"/> 在 Unity 线程上交付。在 UI 线程上直接跑
+    /// <item>UI 线程 → Unity 线程：Java 桥先排队结果，不在 UI 线程进入 IL2CPP；
+    ///       <see cref="Pump"/> 在 Unity 线程调用桥领取结果，再交付业务回调。在 UI 线程上直接跑
     ///       <see cref="ConsentFlow"/> 的回调会碰 Unity API，是未定义行为。</item>
     /// </list>
     ///
@@ -67,7 +67,7 @@ namespace Tracking.Consent.Android
         /// 🔴 **不钉住就会被 GC 掉**：Java 那侧对 <see cref="AndroidJavaProxy"/> 的持有
         /// 不保证托管对象存活，丢了的症状是**什么都不发生**——不报错、不进日志
         /// （<c>AppSetIdUserProperty</c> 那条链踩过同一个坑，那里用的是一个静态字段）。
-        /// 这里同时在两个线程上动（Unity 线程加、UI 线程删），所以要锁。
+        /// Java 桥持有排队结果，直到 Pump 领取；本类在认领后移除代理引用。
         /// </summary>
         private readonly HashSet<AndroidJavaProxy> alive = new HashSet<AndroidJavaProxy>();
 
@@ -194,6 +194,20 @@ namespace Tracking.Consent.Android
         /// </summary>
         public void Pump()
         {
+            bool awaitingResult;
+            lock (alive) awaitingResult = alive.Count != 0;
+            if (bridge != null && awaitingResult)
+            {
+                try
+                {
+                    bridge.CallStatic("dispatchPendingCallbacks");
+                }
+                catch (Exception error)
+                {
+                    Debug.LogWarning("[Tracking] 同意桥结果交付失败：" + error);
+                }
+            }
+
             while (pending.TryDequeue(out var deliver))
             {
                 try
@@ -245,7 +259,7 @@ namespace Tracking.Consent.Android
         }
 
         /// <summary>
-        /// 调一个带回调的桥方法。**恰好回调一次**由两边共同保证：Java 那侧的 <c>Once</c>
+        /// 调一个带回调的桥方法。**恰好回调一次**由两边共同保证：Java 那侧的 <c>ConsentResultQueue</c>
         /// 包住 UMP 的监听器，这里则在桥根本调不起来时**自己补一次失败**。
         /// </summary>
         private void Invoke(string method, Action onSuccess, Action<string> onFailure, string extra = null)
@@ -278,7 +292,7 @@ namespace Tracking.Consent.Android
             }
             catch (Exception error)
             {
-                // 桥没接住这一次调用 → Java 的 Once 不会被触发，失败得由这里补，
+                // 桥没接住这一次调用 → Java 的结果包装可能还没被触发，失败得由这里补，
                 // 否则流程会停在那儿等一个永远不来的回调。
                 if (callback.Claim())
                 {
@@ -301,8 +315,8 @@ namespace Tracking.Consent.Android
         }
 
         /// <summary>
-        /// <c>ConsentCallback</c> 的托管实现。🔴 <see cref="onResult"/> 跑在
-        /// **Android UI 线程**上——除了入队什么都不许做。
+        /// <c>ConsentCallback</c> 的托管实现。Java 的结果队列由 Pump 在 Unity 线程领取；
+        /// 代理只认领结果并排队，业务回调仍由 Pump 在 JNI 调用返回之后交付。
         /// </summary>
         private sealed class BridgeCallback : AndroidJavaProxy
         {
@@ -324,7 +338,7 @@ namespace Tracking.Consent.Android
             /// <summary>
             /// 认领这一次回调，成功返回 <c>true</c>。
             ///
-            /// 🔴 这**不是**「桥可能回调两次」的防御——那条契约由 Java 侧的 <c>Once</c> 兑现。
+            /// 🔴 这**不是**「桥可能回调两次」的防御——那条契约由 Java 侧的 <c>ConsentResultQueue</c> 兑现。
             /// 它挡的是另一件事：<see cref="Invoke"/> 里 <c>CallStatic</c> 抛异常时，
             /// 我们分不清桥是「还没开始」还是「已经排了回调又抛的」。两边都走这个门，
             /// 谁先到谁算数，另一边直接丢掉。
