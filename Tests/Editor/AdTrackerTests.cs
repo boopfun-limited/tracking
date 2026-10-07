@@ -17,6 +17,27 @@ namespace LevelTracking.Tests.EditMode
             public AnalyticsParameter Param(int index, string name) => Events[index].parameters.Single(p => p.Name == name);
         }
         [Test]
+        public void LoadSnapshotsHostContextAndFillAddsItsOwnConnection()
+        {
+            var sink = new Capture();
+            var extras = new[] { AnalyticsParameter.Of("connection_type", "wifi"),
+                AnalyticsParameter.Of("load_trigger", "network_recovery"),
+                AnalyticsParameter.Of("request_id", "cannot-override-standard-id") };
+            var load = new AdTracker(sink).Request("REWARDED", "unit", extras);
+            extras[0] = AnalyticsParameter.Of("connection_type", "mobile");
+            load.Fill(false, AnalyticsParameter.Of("connection_type_end", "none"));
+            load.Fill(true);
+            Assert.That(sink.Events.Count, Is.EqualTo(2));
+            for (var i = 0; i < 2; i++)
+            {
+                Assert.That(sink.Param(i, "connection_type").StringValue, Is.EqualTo("wifi"));
+                Assert.That(sink.Param(i, "load_trigger").StringValue, Is.EqualTo("network_recovery"));
+                Assert.That(sink.Param(i, "request_id").StringValue, Is.EqualTo(load.RequestId));
+            }
+            Assert.That(sink.Param(1, "connection_type_end").StringValue, Is.EqualTo("none"));
+        }
+
+        [Test]
         public void LoadPairsByRequestIdAndDeduplicatesTheResult()
         {
             var sink = new Capture(); double time = 10;

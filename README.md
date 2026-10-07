@@ -383,3 +383,9 @@ purchases.Paid += (p, tx) => Tracker.LogPurchase(p.Id, tx, p.Price, p.CurrencyCo
 
 > 文档维护：Claude Opus 5.5（2026-09-27，新增 AppsFlyer 模块）
 
+
+### 广告加载的宿主诊断上下文
+
+`AdTracker.Request(format, unit, params AnalyticsParameter[] context)` 可附带加载触发原因、重试次数或连接类型。上下文在请求时复制并随配对的 `ad_fill` 发送；回调时的新状态通过 `AdLoad.Fill` 的 details 单独传入。request_id、格式、单元和 load_origin 标准字段以库生成值为准。两参数调用保持兼容；宿主决定字段词汇，不采集原始SDK错误消息。
+
+> 文档维护：GPT-6（2026-10-07，加载诊断上下文）。
