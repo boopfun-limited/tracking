@@ -12,7 +12,6 @@ import com.google.android.ump.ConsentRequestParameters;
 import com.google.android.ump.FormError;
 import com.google.android.ump.UserMessagingPlatform;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Google UMP 的薄封装。C# 侧 {@code Tracking.Consent.Android.UmpConsentPlatform} 按
@@ -55,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class ConsentBridge {
 
     private static final String TAG = "TrackingConsent";
+    private static final ConsentResultQueue results = new ConsentResultQueue();
 
     /**
      * 🔴 {@code volatile}：写在 UI 线程（{@link #requestConsentInfoUpdate} 的 Runnable 里），
@@ -188,7 +188,7 @@ public final class ConsentBridge {
      */
     public static void requestConsentInfoUpdate(
             final Activity activity, final String admobAppId, ConsentCallback callback) {
-        final ConsentCallback once = new Once(callback);
+        final ConsentCallback once = results.once(callback);
         post(activity, once, new Runnable() {
             @Override
             public void run() {
@@ -239,7 +239,7 @@ public final class ConsentBridge {
 
     /** 加载同意表单，成功后把它扣在 {@link #loadedForm} 上等 {@link #showConsentForm} 用。 */
     public static void loadConsentForm(final Activity activity, ConsentCallback callback) {
-        final ConsentCallback once = new Once(callback);
+        final ConsentCallback once = results.once(callback);
         post(activity, once, new Runnable() {
             @Override
             public void run() {
@@ -264,7 +264,7 @@ public final class ConsentBridge {
 
     /** 显示已加载的同意表单。 */
     public static void showConsentForm(final Activity activity, ConsentCallback callback) {
-        final ConsentCallback once = new Once(callback);
+        final ConsentCallback once = results.once(callback);
         post(activity, once, new Runnable() {
             @Override
             public void run() {
@@ -288,7 +288,7 @@ public final class ConsentBridge {
 
     /** 显示隐私选项表单（设置页入口）。UMP 自己负责加载它，不用先 load。 */
     public static void showPrivacyOptionsForm(final Activity activity, ConsentCallback callback) {
-        final ConsentCallback once = new Once(callback);
+        final ConsentCallback once = results.once(callback);
         post(activity, once, new Runnable() {
             @Override
             public void run() {
@@ -344,28 +344,11 @@ public final class ConsentBridge {
         return error.getClass().getName() + ": " + error.getMessage();
     }
 
-    /**
-     * 恰好回调一次的包装。
-     *
-     * <p>🔴 这是本桥对 {@code IConsentPlatform} 那条契约（「每个带回调的方法，恰好回调一次」）
-     * 的兑现处。C# 那侧**没有**另加防御状态，就指望这里：多回一次会让重试次数超出策略，
-     * 少回一次会让流程停在那儿不收尾。两条路径会撞上它——UMP 的监听器，
-     * 以及 {@link #post} 里同步异常那条。
-     */
-    private static final class Once implements ConsentCallback {
-
-        private final ConsentCallback target;
-        private final AtomicBoolean fired = new AtomicBoolean(false);
-
-        Once(ConsentCallback target) {
-            this.target = target;
-        }
-
-        @Override
-        public void onResult(String error) {
-            if (fired.compareAndSet(false, true)) {
-                target.onResult(error);
-            }
+    /** Deliver queued results on the calling Unity thread; never called by UMP's UI listeners. */
+    public static void dispatchPendingCallbacks() {
+        int delivered = results.dispatch();
+        if (delivered != 0) {
+            Log.d(TAG, "Dispatched " + delivered + " consent result(s) on " + Thread.currentThread().getName());
         }
     }
 }

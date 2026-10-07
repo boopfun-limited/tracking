@@ -177,7 +177,9 @@ R8 改名时一起改（同一份构建里的佐证：本桥的匿名内部类�
    哪天那个插件随「AdMob 换 MAX」被移除，**这一行要留下**，否则桥编译得过、运行期整条同意流程静默失效。
 
 3. **每帧调一次 `consentFlow.Tick()`**（与 `PlayClock.Tick` 同一处）。跨线程回调靠它交付：
-   UMP 的监听器落在 Android 主线程上，不是 Unity 主线程。不调的症状是**表单永远不弹**。
+   UMP 的监听器只向 Java 队列写结果；`UmpConsentPlatform.Pump()` 在 Unity 线程调用桥领取，
+   避免 Android UI 线程经 `AndroidJavaProxy` 等待 IL2CPP 的 GC / 暂停。业务回调仍在 Unity 线程交付。
+   不调的症状是**表单永远不弹**。
 
 **R8 keep 规则不用游戏管**——`.androidlib` 用 `consumerProguardFiles` 把规则随模块传给 app 的 R8
 （AppsFlyer / Firebase 保住名字靠的就是这个机制）。这是它与 `AppSetIdUserProperty` 那条的区别：
@@ -334,6 +336,7 @@ dc.Saved(month, "gold", "ok");               // 奖杯图存相册的结果
   页内点击（点日期、切月、看奖杯、玩法说明）不进包：各游戏页面不同，要看某页时游戏自己加平事件。
 - `dc_*` 不与 GA4 自动采集 / 保留事件撞名（依据同上一节的 Firebase 事件表）。不注册 GA4 自定义维度也照样在 BigQuery 导出的原始参数里。
 
+> 文档维护：GPT-6（2026-10-08，同意结果改由 Unity 线程领取 Java 队列）。
 > 文档维护：Claude Opus 5.5（2026-09-25，每日挑战埋点模块，同日加分享 / 存图三个事件；2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
 
 ## IAP：购买漏斗分析
