@@ -336,6 +336,7 @@ dc.Saved(month, "gold", "ok");               // 奖杯图存相册的结果
   页内点击（点日期、切月、看奖杯、玩法说明）不进包：各游戏页面不同，要看某页时游戏自己加平事件。
 - `dc_*` 不与 GA4 自动采集 / 保留事件撞名（依据同上一节的 Firebase 事件表）。不注册 GA4 自定义维度也照样在 BigQuery 导出的原始参数里。
 
+> 文档维护：GPT-6（2026-10-08，同意结果改由 Unity 线程领取 Java 队列）。
 > 文档维护：Claude Opus 5.5（2026-09-25，每日挑战埋点模块，同日加分享 / 存图三个事件；2026-09-24，首启弹窗的字与下划线链接进包）；Claude Opus 5（2026-09-20，条款弹窗判定进包）；GPT-6（2026-09-19，广告模块接入说明）
 
 ## IAP：购买漏斗分析
@@ -391,5 +392,3 @@ purchases.Paid += (p, tx) => Tracker.LogPurchase(p.Id, tx, p.Price, p.CurrencyCo
 `AdTracker.Request(format, unit, params AnalyticsParameter[] context)` 可附带加载触发原因、重试次数或连接类型。上下文在请求时复制并随配对的 `ad_fill` 发送；回调时的新状态通过 `AdLoad.Fill` 的 details 单独传入。request_id、格式、单元和 load_origin 标准字段以库生成值为准。两参数调用保持兼容；宿主决定字段词汇，不采集原始SDK错误消息。
 
 > 文档维护：GPT-6（2026-10-07，加载诊断上下文）。
-
-> 文档维护：GPT-6（2026-10-08，同意结果改由 Unity 线程领取 Java 队列）。
