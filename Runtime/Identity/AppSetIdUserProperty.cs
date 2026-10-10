@@ -51,115 +51,66 @@ namespace Tracking.Identity.Android
         private const int ScopeApp = 1;
         private const int ScopeDeveloper = 2;
 
-        /// <summary>
-        /// 回调是异步来的，而 Java 那侧只持有代理对象的弱引用形态并不保证跨 GC 存活，
-        /// 所以这里钉一个静态引用，等回调跑完再放掉。丢了它的症状是**什么都不发生**
-        /// ——不报错、不进日志，正是最难查的那一类。
-        /// </summary>
-        private static AndroidJavaProxy pendingListener;
-
-        /// <summary>
-        /// 异步取 App Set ID，拿到就写进用户属性。
-        ///
-        /// 🔴 **失败是静默降级，不是抛**：装配跑在 `BeforeSceneLoad`，这里抛出去等于
-        /// 因为一个标识符取不到而整包黑屏。拿不到（没有 Play 服务 / 版本太老 / 用户
-        /// 重置中）就什么都不设——那一台设备参与不了跨 App join，仅此而已。
-        ///
-        /// 传 <c>BufferedAnalyticsBackend</c> 而不是已 Attach 的后端：属性与事件共用
-        /// 同一条有序队列，补报时它落在「当时那一刻」而不是被提到所有事件前面。
-        /// </summary>
+        /// <summary>Google Task finishes entirely in Java; Unity reads the completed value.</summary>
         public static void SetWhenReady(IAnalyticsBackend analytics)
         {
-            if (analytics == null)
-            {
-                throw new ArgumentNullException(nameof(analytics));
-            }
+            if (analytics == null) throw new ArgumentNullException(nameof(analytics));
+            var host = new GameObject("Tracking App Set ID");
+            UnityEngine.Object.DontDestroyOnLoad(host);
+            host.AddComponent<AppSetIdPump>().Begin(analytics);
+        }
 
+        internal static void Apply(IAnalyticsBackend analytics, int scope, string id)
+        {
+            analytics.SetUserProperty(ScopePropertyName, scope == ScopeApp ? "app" : scope == ScopeDeveloper
+                ? "developer" : "unknown_" + scope.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (!string.IsNullOrEmpty(id)) analytics.SetUserProperty(IdPropertyName, id);
+        }
+    }
+
+    internal sealed class AppSetIdPump : MonoBehaviour
+    {
+        private AndroidJavaObject request;
+        private IAnalyticsBackend analytics;
+        private float nextPoll;
+
+        internal void Begin(IAnalyticsBackend backend)
+        {
+            analytics = backend;
             try
             {
                 using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
                 using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
-                using (var appSet = new AndroidJavaClass("com.google.android.gms.appset.AppSet"))
-                using (var client = appSet.CallStatic<AndroidJavaObject>("getClient", activity))
-                using (var task = client.Call<AndroidJavaObject>("getAppSetIdInfo"))
-                {
-                    var listener = new SuccessListener(analytics);
-                    pendingListener = listener;
-
-                    // addOnSuccessListener 返回 Task 本身（链式），这里不用它，随手放掉。
-                    using (task.Call<AndroidJavaObject>("addOnSuccessListener", listener))
-                    {
-                    }
-                }
+                using (var bridge = new AndroidJavaClass("com.gthbj.tracking.identity.AppSetIdBridge"))
+                    request = bridge.CallStatic<AndroidJavaObject>("request", activity);
             }
-            catch (Exception error)
+            catch (Exception)
             {
-                pendingListener = null;
-                Debug.LogWarning($"[Tracking] 取 App Set ID 的入口抛了，本次会话不带这个属性：{error}");
+                Debug.LogWarning("[Tracking] App Set ID request unavailable.");
+                Destroy(gameObject);
             }
         }
 
-        private sealed class SuccessListener : AndroidJavaProxy
+        private void Update()
         {
-            private readonly IAnalyticsBackend analytics;
-
-            public SuccessListener(IAnalyticsBackend analytics)
-                : base("com.google.android.gms.tasks.OnSuccessListener")
+            if (request == null || Time.realtimeSinceStartup < nextPoll) return;
+            nextPoll = Time.realtimeSinceStartup + .25f;
+            try
             {
-                this.analytics = analytics;
+                if (!request.Call<bool>("isDone")) return;
+                if (request.Call<bool>("isSuccessful"))
+                    AppSetIdUserProperty.Apply(analytics, request.Call<int>("getScope"), request.Call<string>("getId"));
+                Debug.Log("[Tracking] App Set ID completion read on Unity thread.");
             }
+            catch (Exception) { Debug.LogWarning("[Tracking] App Set ID result unavailable."); }
+            Destroy(gameObject);
+        }
 
-            /// <summary>
-            /// Java 签名是 `void onSuccess(Object)`；运行时传进来的是 `AppSetIdInfo`。
-            /// 名字与参数个数要和 Java 那边对得上，Unity 按这两样派发。
-            /// </summary>
-            public void onSuccess(AndroidJavaObject appSetIdInfo)
-            {
-                try
-                {
-                    if (appSetIdInfo == null)
-                    {
-                        return;
-                    }
-
-                    int scope = appSetIdInfo.Call<int>("getScope");
-                    string id = appSetIdInfo.Call<string>("getId");
-
-                    // 两条一起送。作用域先送：join 那侧要先看它才知道 id 能不能用，
-                    // 而属性是按设置顺序落在后续事件上的，先后无所谓但读起来顺。
-                    analytics.SetUserProperty(ScopePropertyName, DescribeScope(scope));
-
-                    if (!string.IsNullOrEmpty(id))
-                    {
-                        analytics.SetUserProperty(IdPropertyName, id);
-                    }
-                }
-                catch (Exception error)
-                {
-                    Debug.LogWarning($"[Tracking] 读 App Set ID 回调失败，本次会话不带这个属性：{error}");
-                }
-                finally
-                {
-                    appSetIdInfo?.Dispose();
-                    pendingListener = null;
-                }
-            }
-
-            private static string DescribeScope(int scope)
-            {
-                switch (scope)
-                {
-                    case ScopeDeveloper:
-                        return "developer";
-                    case ScopeApp:
-                        return "app";
-                    default:
-                        // 没见过的取值原样送出去，别悄悄归到已知的两档里——
-                        // 那会让「Play 服务加了新档」看起来跟正常情况一模一样。
-                        return "unknown_" + scope.ToString(
-                            System.Globalization.CultureInfo.InvariantCulture);
-                }
-            }
+        private void OnDestroy()
+        {
+            request?.Dispose();
+            request = null;
+            analytics = null;
         }
     }
 }

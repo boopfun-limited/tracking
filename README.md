@@ -37,6 +37,7 @@ Unity 休闲解谜游戏的埋点公共库（`com.gthbj.tracking`）。从 `boop
    `DECISION_LOG.md` 与 `Docs~/` 里的 `gthbj/<仓>` 是当时的记录，不改写；`com.gthbj.*` 是包名不是地址，不随迁移改。
 2. 导入 Firebase Unity SDK 的 `FirebaseAnalytics.unitypackage`（可删桌面 / iOS 原生库），`Assets/google-services.json` 入库。
 3. 装配根：Android 上 `var buffer = new BufferedAnalyticsBackend(); FirebaseAnalyticsBackend.AttachWhenReady(buffer);`，
+   App Set ID 的 Google Task 回调只写 Java 结果；内置临时 Unity runner 领取后写属性，完成即销毁。
    要跨 App 归因再加一行 `AppSetIdUserProperty.SetWhenReady(buffer);`（**传 buffer 不传已 Attach 的后端**——
    属性与事件共用同一条有序队列，补报时才落在「当时那一刻」）。
    🔴 **`AttachWhenReady` 一进来就同步开采集、把四项同意写死 GRANTED**（照 oakever 在 `onCreate` 里写的时点，D-20260911-01 / D-20260916-01）；
@@ -392,3 +393,5 @@ purchases.Paid += (p, tx) => Tracker.LogPurchase(p.Id, tx, p.Price, p.CurrencyCo
 `AdTracker.Request(format, unit, params AnalyticsParameter[] context)` 可附带加载触发原因、重试次数或连接类型。上下文在请求时复制并随配对的 `ad_fill` 发送；回调时的新状态通过 `AdLoad.Fill` 的 details 单独传入。request_id、格式、单元和 load_origin 标准字段以库生成值为准。两参数调用保持兼容；宿主决定字段词汇，不采集原始SDK错误消息。
 
 > 文档维护：GPT-6（2026-10-07，加载诊断上下文）。
+
+> 文档维护：GPT-6（2026-10-10，App Set ID 回调隔离 Android UI 与 IL2CPP）。
