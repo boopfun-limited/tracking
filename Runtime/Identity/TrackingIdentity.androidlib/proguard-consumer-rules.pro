@@ -1,0 +1,2 @@
+-keep class com.gthbj.tracking.identity.AppSetIdBridge { *; }
+-keep class com.gthbj.tracking.identity.AppSetIdResult { public *; }

@@ -1,0 +1,8 @@
+apply plugin: 'com.android.library'
+dependencies { compileOnly 'com.google.android.gms:play-services-appset:16.0.1' }
+android {
+    namespace 'com.gthbj.tracking.identity'
+    compileSdk 36
+    defaultConfig { minSdk 21; consumerProguardFiles 'proguard-consumer-rules.pro' }
+    sourceSets { main { manifest.srcFile 'AndroidManifest.xml'; java.srcDirs = ['src'] } }
+}
